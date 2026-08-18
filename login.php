@@ -1,6 +1,6 @@
 <?php
 	include_once('./common/entry.php');
-    global $g_root_url, $g_online_zhtw;
+    global $g_root_url, $g_online_zhtw, $g_backend_title;
 	getGoldenKey();
 ?>
 <!DOCTYPE html>
@@ -8,7 +8,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>量測後台管理系統 - 登入</title>
+    <title><?= $backend_title; ?> - 登入</title>
     <style>
         * {
             box-sizing: border-box;

@@ -5,6 +5,7 @@
 	$g_is_online = true;
 	$g_online = ($g_is_online) ? "ON-LINE" : "OFF-LINE"; // ON-LINE(線上版)、OFF-LINE(離線版)
 	$g_online_zhtw = ($g_is_online) ? "[線上版]" : "[離線版]";
+	$g_backend_title = "量測後台管理系統";
 	
 	$g_is_remote = false;
 

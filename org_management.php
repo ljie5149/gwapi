@@ -1,6 +1,6 @@
 <?php
     include_once('common/entry.php');
-    global $g_is_online, $g_online_zhtw;
+    global $g_is_online, $g_online_zhtw, $g_backend_title;
     $username = $_SESSION['accname'] ?? "";
     $userrole = $_SESSION['user_role'] ?? "";
     uiLocationPage();
@@ -23,7 +23,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>機構管理 - 量測後台管理系統</title>
+    <title>機構管理 - <?= $g_backend_title; ?></title>
     <style>
         * {
             box-sizing: border-box;

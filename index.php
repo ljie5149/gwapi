@@ -1,14 +1,22 @@
 <?php
     include_once('common/entry.php');
+    global $g_is_online, $g_online_zhtw, $g_backend_title;
     $username = $_SESSION['accname'] ?? "";
-    uiLocationPage(true);
+    $userrole = $_SESSION['user_role'] ?? "";
+    uiLocationPage();
+    $cloud_url = ($g_is_online) ? "online_cloud.php" : "offline_cloud.php";
+    $org_str = "";
+    if ($userrole == "superuser") {
+        $org_str = '<span class="separator">|</span>
+                    <a href="org_management.php">機構管理</a>';
+    }
 ?>
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>資料管理 - 量測後台管理系統</title>
+    <title>資料管理 - <?= $g_backend_title; ?></title>
     <style>
         * {
             box-sizing: border-box;
@@ -66,6 +74,8 @@
             border-radius: 15px;
             font-size: 14px;
             transition: background 0.2s;
+            cursor: pointer;
+            border: none;
         }
 
         .logout-btn:hover {
@@ -267,23 +277,112 @@
             color: #aaa;
             cursor: default;
         }
+
+        /* Modal 對話方塊樣式 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.35);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-container {
+            background-color: #ffffff;
+            width: 520px;
+            border-radius: 6px;
+            padding: 35px 30px 45px 30px;
+            position: relative;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: -15px;
+            right: -15px;
+            width: 32px;
+            height: 32px;
+            background-color: #636c74;
+            color: #ffffff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .modal-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #000000;
+            margin-bottom: 25px;
+        }
+
+        .modal-desc {
+            font-size: 18px;
+            color: #222222;
+            margin-bottom: 35px;
+        }
+
+        .modal-btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+        }
+
+        .btn-modal-cancel {
+            background-color: #797979;
+            color: #ffffff;
+            border: none;
+            padding: 12px 35px;
+            border-radius: 12px;
+            font-size: 22px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-modal-confirm-logout {
+            background-color: #ef4c3c;
+            color: #ffffff;
+            border: none;
+            padding: 12px 35px;
+            border-radius: 12px;
+            font-size: 22px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+        }
     </style>
 </head>
 <body>
 
     <!-- 頂部導航列 -->
     <header class="navbar">
-        <nav class="nav-links">
+        <nav class="nav-links"><span><?= $g_online_zhtw ?></span>
             <a href="dashboard.php" style="font-weight: bold;">資料管理</a>
             <span class="separator">|</span>
             <a href="device_list.php">設備序號清單</a>
             <span class="separator">|</span>
-            <!-- 修改點：設定跳轉至 offline_cloud.php -->
-            <a href="offline_cloud.php">離線/雲端管理</a>
+            <a href="<?= $cloud_url; ?>">離線/雲端管理</a>
+            <?= $org_str; ?>
         </nav>
         <div class="user-info">
             <span>登入者：<?php echo htmlspecialchars($username); ?></span>
-            <a href="dashboard.php?action=logout" class="logout-btn">登出</a>
+            <!-- 修改點：觸發登出 Modal 對話框 -->
+            <button type="button" id="openLogoutModal" class="logout-btn">登出</button>
         </div>
     </header>
 
@@ -399,11 +498,24 @@
         <a href="#" class="page-link active">1</a>
         <a href="#" class="page-link">2</a>
         <a href="#" class="page-link">3</a>
-        <span>...</span>
+        <span style="user-select: none;">...</span>
         <a href="#" class="page-link">67</a>
         <a href="#" class="page-link">68</a>
         <a href="#" class="page-link">Next &rarr;</a>
     </footer>
+
+    <!-- 登出確認 Modal 對話方塊 -->
+    <div class="modal-overlay" id="logoutModal">
+        <div class="modal-container">
+            <div class="modal-close" id="closeLogoutModal">X</div>
+            <h2 class="modal-title">系統登出</h2>
+            <p class="modal-desc">確定要登出目前帳號嗎？</p>
+            <div class="modal-btn-group">
+                <button class="btn-modal-cancel" id="cancelLogoutBtn">取消</button>
+                <a href="logout.php" class="btn-modal-confirm-logout">確定登出</a>
+            </div>
+        </div>
+    </div>
 
     <script>
         const btnRaw = document.getElementById('btnRaw');
@@ -436,6 +548,34 @@
                 const table = this.closest('table');
                 table.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = this.checked);
             });
+        });
+
+        // --- 登出 Modal 控制邏輯 ---
+        const logoutModal = document.getElementById('logoutModal');
+        const openLogoutModalBtn = document.getElementById('openLogoutModal');
+        const closeLogoutModalBtn = document.getElementById('closeLogoutModal');
+        const cancelLogoutBtn = document.getElementById('cancelLogoutBtn');
+
+        // 開啟登出 Modal
+        openLogoutModalBtn.addEventListener('click', function() {
+            logoutModal.style.display = 'flex';
+        });
+
+        // 關閉登出 Modal (按右上角 X)
+        closeLogoutModalBtn.addEventListener('click', function() {
+            logoutModal.style.display = 'none';
+        });
+
+        // 關閉登出 Modal (按取消按鈕)
+        cancelLogoutBtn.addEventListener('click', function() {
+            logoutModal.style.display = 'none';
+        });
+
+        // 點擊背景空白處關閉 Modal
+        window.addEventListener('click', function(e) {
+            if (e.target === logoutModal) {
+                logoutModal.style.display = 'none';
+            }
         });
     </script>
 </body>
