@@ -405,7 +405,7 @@
             <span class="separator">|</span>
             <a href="device_list.php">設備序號清單</a>
             <span class="separator">|</span>
-            <a href="<?= $cloud_url; ?>" style="font-weight: bold;">離線/雲端管理</a>
+            <a href="<?= $cloud_url; ?>">離線/雲端管理</a>
             <?= $org_str; ?>
         </nav>
         <div class="user-info">

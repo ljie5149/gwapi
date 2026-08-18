@@ -8,7 +8,7 @@
     $org_str = "";
     if ($userrole == "superuser") {
         $org_str = '<span class="separator">|</span>
-                    <a href="org_management.php" style="font-weight: bold;">機構管理</a>';
+                    <a href="org_management.php">機構管理</a>';
     }
 ?>
 <!DOCTYPE html>
