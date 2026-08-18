@@ -1,0 +1,79 @@
+body {
+    background-color:#f8f9fc;
+    opacity: 0; transition: opacity 0.2s;
+}
+    body.active {opacity: 1;}
+
+table {
+    border-radius: 10px;
+    box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+    margin: 12px;
+    background-color: white;
+}
+th, td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: #f6f6f6;
+    color: black;
+    position: sticky;
+    top: 0;
+}
+.head {
+    background-color: #e9e9e9;
+    color: black;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    z-index:999;
+}
+.float-right {
+    float: right;
+    margin-right: 100px;
+}
+
+tbody {
+/*
+    display: block;
+    overflow-y: scroll;
+*/
+}
+tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+    border-spacing: 0;
+}
+.fieldhead th:hover {
+    background-color: lightskyblue;
+}
+tbody tr:hover {
+    background-color: #ffd760;
+}
+td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-wrap: break-word;
+}
+.tail {
+    background-color: #f2f2f2;
+    color: black;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+.btn-blue,
+.btn-blue:after {
+    color: #007bff;
+}
+.btn-blue:hover {
+    color: white;
+}
+
+.tfoot-btn-left {
+    float: left;
+    margin-left: 0%;
+    /* margin: 0 auto; */
+    /* width: 50%; // optional - set a width for the div */
+}

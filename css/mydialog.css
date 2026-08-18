@@ -1,0 +1,112 @@
+.overlay-export,
+.overlay-import,
+.overlay-author-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* 遮罩层的颜色和透明度 */
+    z-index: 9999; /* 确保遮罩层在其他元素之上 */
+}
+.preview_viewer {
+    display: none;
+}
+.myform {
+    border-radius    : 10px;
+    box-shadow       : rgba(0, 0, 0, 0.35) 0px 5px 15px;
+    background-color : white;
+    margin           : auto; /* center */
+    width            : 98%;
+    opacity          : 1;
+}
+.myform-head {
+    height                  : 60px;
+    background-color        : gray;
+    color                   : white;
+    border-top-left-radius  : 10px;
+    border-top-right-radius : 10px;
+}
+.myform-head-content {
+    position         : absolute;
+    margin-left : 10px;
+    margin-top  : 10px;
+}
+.myform-tail {
+    height                      : 60px;
+    background-color            : lightgray;
+    border-bottom-left-radius   : 10px;
+    border-bottom-right-radius  : 10px;
+}
+.myform-tail-content {
+    position         : absolute;
+    margin-left : 10px;
+    margin-top  : 10px;
+}
+
+.mydlg {
+    position         : absolute;
+    top              : 50%;
+    left             : 50%;
+    border-radius    : 10px;
+    box-shadow       : rgba(0, 0, 0, 0.35) 0px 5px 15px;
+    background-color : white;
+    width            : 500px;
+    margin           : -250px 0px 0px -250px;
+    opacity          : 1;
+}
+.author-dlg {
+    position         : absolute;
+    top              : 5%;
+    left             : 25%;
+    border-radius    : 10px;
+    box-shadow       : rgba(0, 0, 0, 0.35) 0px 5px 15px;
+    background-color : white;
+    width            : 50%;
+    margin           : auto;
+    opacity          : 1;
+}
+.dlghead {
+    background-color        : #e9e9e9;
+    color                   : black;
+    border-top-left-radius  : 10px;
+    border-top-right-radius : 10px;
+}
+.dlgtitle {
+    font-size        : 22px;
+    margin           : 0px 10px;
+}
+.dlgcontainer {
+    margin           : 20px;
+}
+.resultmsg, .resultmsg-import {
+    color            : green;
+    text-align       : center;
+    border-radius    : 4px;
+    background-color : lightgray;
+}
+.msg {
+    font-weight      : bold;
+    font-size        : 16px;
+}
+.progress-bar {
+    border-radius    : 10px;
+}
+
+    .upload-block {
+        width        : 300px;
+        height       : 200px;
+        border-style : dotted;
+        border-color : #999999;
+        text-align   : center;
+        padding      : 20px;
+        margin       : 20px;
+    }
+    .dragover {
+        border-color : #FF9900;
+    }
+    .progress {
+        border-radius: 10px;
+        text-align   : center;
+        width        : 100%;
+    }
