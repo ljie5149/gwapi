@@ -1,0 +1,401 @@
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Microsoft JhengHei", "微軟正黑體", Arial, sans-serif;
+        }
+
+        body {
+            background-color: #e3e3e3;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 頂部導航列 */
+        .navbar {
+            background-color: #2b79a2;
+            color: #ffffff;
+            height: 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 16px;
+        }
+
+        .nav-links a {
+            color: #ffffff;
+            text-decoration: none;
+        }
+
+        .nav-links .separator {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 15px;
+        }
+
+        .logout-btn {
+            background-color: #6b8296;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 4px 14px;
+            border-radius: 15px;
+            font-size: 14px;
+            transition: background 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .logout-btn:hover { background-color: #55697a; }
+
+        /* 主區域 */
+        .main-container {
+            padding: 20px 40px;
+            flex: 1;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: bold;
+            color: #1a1a1a;
+            margin-bottom: 20px;
+        }
+
+        /* 篩選與工具列 */
+        .filter-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .filter-label {
+            font-size: 20px;
+            font-weight: bold;
+            color: #222222;
+        }
+
+        .select-container select {
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 6px 40px 6px 15px;
+            font-size: 18px;
+            outline: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='gray'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 20px;
+            min-width: 220px;
+        }
+
+        /* 搜尋列與新增刪除按鈕 */
+        .search-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            flex: 1;
+            height: 42px;
+            border: 1px solid #cccccc;
+            border-radius: 8px;
+            padding: 0 15px;
+            font-size: 18px;
+            outline: none;
+            background-color: #ffffff;
+        }
+
+        .btn-add {
+            background-color: #fca934;
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-delete {
+            background-color: #b82828;
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* 表格樣式 */
+        .table-card {
+            background-color: #f7f7f7;
+            border-radius: 4px;
+            border: 1px solid #d0d0d0;
+            min-height: 480px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .data-table th {
+            background-color: #cde4f7;
+            padding: 12px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #1a1a1a;
+        }
+
+        .data-table td {
+            padding: 12px 20px;
+            font-size: 18px;
+            color: #1a1a1a;
+            border-bottom: 1px solid #eaeaea;
+        }
+
+        .checkbox-col {
+            width: 60px;
+            text-align: center;
+        }
+
+        .data-table input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .status-active {
+            color: #43a047;
+            font-weight: bold;
+        }
+
+        .status-disabled {
+            color: #e53935;
+            font-weight: bold;
+        }
+
+        /* 動作按鈕 (停用/編輯) */
+        .btn-action {
+            border: none;
+            color: #ffffff;
+            padding: 6px 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-disable { background-color: #6c757d; }
+        .btn-enable { background-color: #28a745; }
+        .btn-edit { background-color: #a36955; }
+
+        /* 分頁控制列 (Pagination) */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: #ffffff;
+            border-top: 1px solid #d0d0d0;
+            border-radius: 0 0 4px 4px;
+        }
+
+        .pagination-info {
+            font-size: 16px;
+            color: #555555;
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .page-btn {
+            background-color: #ffffff;
+            border: 1px solid #cccccc;
+            color: #333333;
+            padding: 6px 14px;
+            font-size: 15px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background-color: #2b79a2;
+            color: #ffffff;
+            border-color: #2b79a2;
+        }
+
+        .page-btn.active {
+            background-color: #2b79a2;
+            color: #ffffff;
+            border-color: #2b79a2;
+        }
+
+        .page-btn:disabled {
+            background-color: #f1f1f1;
+            color: #b0b0b0;
+            border-color: #e0e0e0;
+            cursor: not-allowed;
+        }
+
+        /* Modal 對話方塊通用樣式 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.35);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-container {
+            background-color: #ffffff;
+            width: 520px;
+            border-radius: 6px;
+            padding: 35px 30px 45px 30px;
+            position: relative;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: -15px;
+            right: -15px;
+            width: 32px;
+            height: 32px;
+            background-color: #636c74;
+            color: #ffffff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .modal-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #000000;
+            margin-bottom: 25px;
+        }
+
+        .modal-desc {
+            font-size: 18px;
+            color: #222222;
+            margin-bottom: 35px;
+        }
+
+        .modal-btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+        }
+
+        .modal-form-group {
+            text-align: left;
+            margin-bottom: 20px;
+        }
+
+        .modal-form-group label {
+            display: block;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .modal-form-group input,
+        .modal-form-group select {
+            width: 100%;
+            height: 42px;
+            padding: 0 12px;
+            font-size: 18px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            outline: none;
+        }
+
+        .btn-modal-cancel {
+            background-color: #797979;
+            color: #ffffff;
+            border: none;
+            padding: 12px 35px;
+            border-radius: 12px;
+            font-size: 22px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-modal-submit {
+            background-color: #124b6e;
+            color: #ffffff;
+            border: none;
+            padding: 12px 35px;
+            border-radius: 12px;
+            font-size: 22px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-modal-danger {
+            background-color: #ef4c3c;
+            color: #ffffff;
+            border: none;
+            padding: 12px 35px;
+            border-radius: 12px;
+            font-size: 22px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* 啟用中：綠色 */
+        .span_status-active {
+            color: #28a745; /* 綠色 */
+            font-weight: bold;
+        }
+
+        /* 已停用：灰色 */
+        .span_status-disabled {
+            color: #6c757d; /* 灰色 */
+            font-weight: bold;
+        }

@@ -2,10 +2,11 @@
 	define("PHPGRID_DBTYPE","mysqli"); // mysql,oci8(for oracle),mssql,postgres,sybase
 	define("PHPGRID_LIBPATH", dirname(__FILE__)."/../".DIRECTORY_SEPARATOR."gridphp_object".DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR);
 	
-	$g_is_online = true;
-	$g_online = ($g_is_online) ? "ON-LINE" : "OFF-LINE"; // ON-LINE(線上版)、OFF-LINE(離線版)
-	$g_online_zhtw = ($g_is_online) ? "[線上版]" : "[離線版]";
-	$g_backend_title = "量測後台管理系統";
+	$g_is_online 		= true;
+	$g_online 			= ($g_is_online) ? "ON-LINE" : "OFF-LINE"; // ON-LINE(線上版)、OFF-LINE(離線版)
+	$g_online_zhtw 		= ($g_is_online) ? "" : "[離線版]";
+	$g_backend_title 	= "量測後台管理系統";
+	$g_supperuser_all 	= false;
 	
 	$g_is_remote = false;
 

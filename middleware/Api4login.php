@@ -55,7 +55,7 @@
             $_SESSION['accname'  ] = $cur_member['member_name'];
             $_SESSION['user_role'] = $cur_member['role'];
 
-            echo json_encode(["status" => "true", "message" => "登入成功！"], JSON_UNESCAPED_UNICODE);
+            echo json_encode(["status" => "true", "message" => "登入成功！", "role" => $cur_member['role']], JSON_UNESCAPED_UNICODE);
         } else {
             $error_msg = $member_result['responseMessage'] ?? $member_result['message'] ?? '帳號或密碼錯誤！';
             echo json_encode(["status" => "false", "message" => $error_msg], JSON_UNESCAPED_UNICODE);

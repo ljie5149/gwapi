@@ -587,11 +587,20 @@
 		// handle curl error
 		return ($obj["status"] == "error") ? 0 : 1; //die();
 	}
-	function uiLocationPage($onlyChk4LogoutPage=false)
+	function uiLocationPage($skip_org_management = false, $onlyChk4LogoutPage=false)
 	{
+    	global $g_supperuser_all;
 		if (!$onlyChk4LogoutPage && (is_null($_SESSION['user_role']) || strlen($_SESSION['user_role']) == 0)) header("Location: ./");
 		if ($_SESSION['accname'] ==  "") {
 			header("Location: logout.php");
+		}
+		if (!$skip_org_management) {
+			if ($g_supperuser_all == false) {
+				$userrole = $_SESSION['user_role'] ?? "";
+				if ($userrole == "superuser") {
+					header("Location: ./org_management.php");
+				}
+			}
 		}
 	}
 	function getFullMenuString($idx, $subidx)

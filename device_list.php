@@ -1,14 +1,17 @@
 <?php
     include_once('common/entry.php');
-    global $g_is_online, $g_online_zhtw, $g_backend_title;
+    global $g_is_online, $g_online_zhtw, $g_backend_title, $g_supperuser_all;
     $username = $_SESSION['accname'] ?? "";
     $userrole = $_SESSION['user_role'] ?? "";
     uiLocationPage();
     $cloud_url = ($g_is_online) ? "online_cloud.php" : "offline_cloud.php";
+    $cloud_url = "online_cloud.php";
     $org_str = "";
     if ($userrole == "superuser") {
-        $org_str = '<span class="separator">|</span>
-                    <a href="org_management.php">機構管理</a>';
+        if ($g_supperuser_all) {
+            $org_str = '<span class="separator">|</span>
+                        <a href="org_management.php" style="font-weight: bold;">機構管理</a>';
+        }
     }
 ?>
 <!DOCTYPE html>

@@ -1,6 +1,7 @@
 <?php
 	include_once('./common/entry.php');
-    global $g_root_url, $g_online_zhtw, $g_backend_title;
+    global $g_root_url, $g_online_zhtw, $g_backend_title, $g_supperuser_all;
+    $showAll = ($g_supperuser_all) ? "1" : "0";
 	getGoldenKey();
 ?>
 <!DOCTYPE html>
@@ -8,7 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $backend_title; ?> - 登入</title>
+    <title><?= $g_backend_title; ?> - 登入</title>
     <style>
         * {
             box-sizing: border-box;
@@ -191,9 +192,22 @@
                 const result = await response.json();
 				console.log(result);
 
+                var show_all = '<?php echo $showAll ?>';
+                console.log(show_all);
+                // return;
                 if (result.status === 'true') {
-                    // 登入成功，轉址至儀表板主頁
-                    window.location.href = 'dashboard.php';
+                    // 登入成功，依據角色進行分流轉址
+                    // console.log(result.role);
+                    // return;
+                    if (result.role === 'superuser') {
+                        if (show_all == "0") {
+                            window.location.href = 'org_management.php';
+                        } else {
+                            window.location.href = 'dashboard.php';
+                        }
+                    } else {
+                        window.location.href = 'dashboard.php';
+                    }
                 } else {
                     // 登入失敗，顯示錯誤提示訊息
                     errorMsgBox.textContent = result.message || '帳號或密碼錯誤！';

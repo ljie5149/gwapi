@@ -86,7 +86,7 @@
             return;
         }
     } else {
-        $data = result_message("false", "0x0206", "API parameter [sso_token] is required!", $null_array);
+        $data = result_message("false", "0x0206", "API parameter [token key] is required!", $null_array);
         echo json_encode($data, JSON_UNESCAPED_UNICODE);
         return;
     }
@@ -143,16 +143,21 @@
                     $member_name = isset($src_data['member_name']) ? trim($src_data['member_name']) : '';
                     $facility_id = isset($src_data['facility_id']) ? intval($src_data['facility_id']) : 0;
                     $role        = isset($src_data['role']       ) ? trim($src_data['role'])  : '';
+                    $filter_role = isset($src_data['filter_role']       ) ? trim($src_data['filter_role'])  : '';
+                    $filter_name_account = isset($src_data['filter_name_account']       ) ? trim($src_data['filter_name_account'])  : '';
+                    
+                    $get_all = ($role == 'superuser') ? "1" : "0";
+                    if ($get_all == "1") $role = "";
 
                     // 💡 檢查密碼必填
-                    if (empty($account)) {
+                    if (empty($account) && $get_all == "0") {
                         $data = result_message("false", "0x0206", "API parameter [account] is required!", $null_array);
                         echo json_encode($data, JSON_UNESCAPED_UNICODE);
                         return;
                     }
 
                     // 💡 檢查密碼必填
-                    if (empty($password_base64)) {
+                    if (empty($password_base64) && $get_all == "0") {
                         $data = result_message("false", "0x0206", "API parameter [password] is required!", $null_array);
                         echo json_encode($data, JSON_UNESCAPED_UNICODE);
                         return;
@@ -196,13 +201,25 @@
                         $params[] = $role;
                         $types .= "s";
                     }
+                    
+                    if (!empty($filter_role)) {
+                        $where_clauses[] = "role = ?";
+                        $params[] = $filter_role;
+                        $types .= "s";
+                    }
+                    if (!empty($filter_name_account)) {
+                        $where_clauses[] = "member_name LIKE ? OR account LIKE ?";
+                        $params[] = "%" . $filter_name_account . "%";
+                        $params[] = "%" . $filter_name_account . "%";
+                        $types .= "ss";
+                    }
 
                     // SELECT 時帶出 password 進行比對
                     $sql = "SELECT id, sid, account, password, member_name, facility_id, role, email, phone, status, last_login_at, remark, created_at, updated_at 
                             FROM $tableMain 
                             WHERE " . implode(" AND ", $where_clauses) . " 
                             ORDER BY id DESC";
-
+                            
                     $stmt = mysqli_prepare($link, $sql);
                     if ($stmt) {
                         if (!empty($params)) {
@@ -214,14 +231,17 @@
                         if ($result && mysqli_num_rows($result) > 0) {
                             $query_rows_tmp = [];
                             $has_pwd_matched = false;
-
+                            
                             while ($row = mysqli_fetch_assoc($result)) {
-                                // 進行密碼雜湊比對
-                                if (password_verify($password, $row['password'])) {
-                                    $has_pwd_matched = true;
-                                    unset($row['password']); // 移除敏感欄位
-                                    array_push($query_rows_tmp, $row);
+                                // 若有帶入密碼才進行雜湊比對（適用於單一會員登入/驗證）
+                                if (!empty($password_base64) && $get_all == "0") {
+                                    $password = base64_decode($password_base64);
+                                    if (!password_verify($password, $row['password'])) {
+                                        continue;
+                                    }
                                 }
+                                unset($row['password']); // 移除敏感密碼欄位
+                                array_push($query_rows_tmp, $row);
                             }
 
                             if (!empty($query_rows_tmp)) {
