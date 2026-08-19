@@ -1,8 +1,10 @@
 <?php
     include_once('common/entry.php');
-    global $g_is_online, $g_online_zhtw, $g_backend_title, $g_supperuser_all;
+    global $g_root_url, $g_is_online, $g_online_zhtw, $g_backend_title, $g_supperuser_all;
     $username = $_SESSION['accname'] ?? "";
     $userrole = $_SESSION['user_role'] ?? "";
+    $sso_token = $_SESSION['sso_token'] ?? "";
+
     uiLocationPage();
     $cloud_url = ($g_is_online) ? "online_cloud.php" : "offline_cloud.php";
     $cloud_url = "online_cloud.php";
@@ -20,6 +22,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>設備序號清單 - <?= $g_backend_title; ?></title>
+    
+    <!-- Flatpickr 日期選擇器套件 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
     <style>
         * {
             box-sizing: border-box;
@@ -132,14 +138,17 @@
             padding: 6px 12px;
             display: flex;
             align-items: center;
+            cursor: pointer;
         }
 
         .date-input-container input {
             border: none;
             outline: none;
             font-size: 18px;
-            width: 230px;
+            width: 260px;
             color: #333;
+            background: transparent;
+            cursor: pointer;
         }
 
         /* 搜尋與操作按鈕列 */
@@ -224,6 +233,13 @@
             cursor: pointer;
         }
 
+        .no-data {
+            text-align: center;
+            padding: 30px;
+            color: #888;
+            font-size: 18px;
+        }
+
         /* 編輯按鈕 */
         .btn-edit {
             background-color: #797979;
@@ -264,7 +280,7 @@
 
         .page-link.disabled { color: #aaa; cursor: default; }
 
-        /* Modal 對話方塊通用樣式 */
+        /* Modal 通用樣式 */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -326,7 +342,25 @@
             gap: 25px;
         }
 
-        /* 批次新增 Modal 按鈕樣式 */
+        .form-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+        .form-group label {
+            display: block;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
         .btn-modal-download {
             background-color: #124b6e;
             color: #ffffff;
@@ -339,7 +373,7 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
         }
 
-        .btn-modal-upload {
+        .btn-modal-upload, .btn-modal-confirm-delete, .btn-modal-save {
             background-color: #ef4c3c;
             color: #ffffff;
             border: none;
@@ -351,7 +385,8 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
         }
 
-        /* 登出 Modal 按鈕樣式 */
+        .btn-modal-save { background-color: #28a745; }
+
         .btn-modal-cancel {
             background-color: #797979;
             color: #ffffff;
@@ -393,7 +428,6 @@
         </nav>
         <div class="user-info">
             <span>登入者：<?php echo htmlspecialchars($username); ?></span>
-            <!-- 修改點：對齊 dashboard.php 的按鈕型態與 id -->
             <button type="button" id="openLogoutModal" class="logout-btn">登出</button>
         </div>
     </header>
@@ -405,17 +439,14 @@
         <div class="filter-row">
             <span class="filter-label">量測設備</span>
             <div class="select-container">
-                <select>
-                    <option value="全部">全部</option>
-                    <option value="血壓計">血壓計</option>
-                    <option value="血糖機">血糖機</option>
-                    <option value="體溫計">體溫計</option>
+                <select id="deviceSelect">
+                    <option value="">載入中...</option>
                 </select>
             </div>
 
             <span class="filter-label" style="margin-left: 15px;">更新日期</span>
             <div class="date-input-container">
-                <input type="text" value="2026-08-01 - 2026-08-11">
+                <input type="text" id="dateRangeInput" placeholder="請選擇起迄日期" readonly>
                 <span>📅</span>
             </div>
         </div>
@@ -423,9 +454,9 @@
         <!-- 第二排：搜尋與動作按鈕 -->
         <div class="search-row">
             <span class="filter-label">搜尋</span>
-            <input type="text" class="search-input" placeholder="搜尋序號...">
+            <input type="text" id="searchInput" class="search-input" placeholder="搜尋序號或設備名稱...">
             <button class="btn-batch-add" id="openBatchModal">批次新增</button>
-            <button class="btn-delete">刪除</button>
+            <button class="btn-delete" id="openDeleteModal">刪除</button>
         </div>
 
         <!-- 資料表格區塊 -->
@@ -442,16 +473,8 @@
                         <th>編輯</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td class="checkbox-col"><input type="checkbox" class="row-checkbox"></td>
-                        <td>血壓計</td>
-                        <td>血壓計01</td>
-                        <td>123456789</td>
-                        <td>2026/8/1</td>
-                        <td>2026/8/1</td>
-                        <td><button class="btn-edit">編輯</button></td>
-                    </tr>
+                <tbody id="deviceTableBody">
+                    <tr><td colspan="7" class="no-data">資料載入中...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -461,15 +484,10 @@
     <footer class="pagination">
         <span class="page-link disabled">&larr; Previous</span>
         <a href="#" class="page-link active">1</a>
-        <a href="#" class="page-link">2</a>
-        <a href="#" class="page-link">3</a>
-        <span style="user-select: none;">...</span>
-        <a href="#" class="page-link">67</a>
-        <a href="#" class="page-link">68</a>
         <a href="#" class="page-link">Next &rarr;</a>
     </footer>
 
-    <!-- 批次新增 Modal 對話方塊 -->
+    <!-- 批次新增 Modal -->
     <div class="modal-overlay" id="batchModal">
         <div class="modal-container">
             <div class="modal-close" id="closeBatchModal">X</div>
@@ -482,7 +500,51 @@
         </div>
     </div>
 
-    <!-- 登出確認 Modal 對話方塊 -->
+    <!-- 刪除確認 Modal -->
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal-container">
+            <div class="modal-close" id="closeDeleteModal">X</div>
+            <h2 class="modal-title">刪除確認</h2>
+            <p class="modal-desc" id="deleteModalDesc">確定要刪除選取的設備資料嗎？</p>
+            <div class="modal-btn-group">
+                <button class="btn-modal-cancel" id="cancelDeleteBtn">取消</button>
+                <button class="btn-modal-confirm-delete" id="confirmDeleteBtn">確定刪除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯設備 Modal -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal-container">
+            <div class="modal-close" id="closeEditModal">X</div>
+            <h2 class="modal-title">編輯設備序號</h2>
+            <input type="hidden" id="editTargetId">
+            <div class="form-group">
+                <label>量測設備</label>
+                <select id="editDeviceType">
+                    <option value="">載入中...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>設備名稱</label>
+                <input type="text" id="editDeviceName" placeholder="請輸入設備名稱">
+            </div>
+            <div class="form-group">
+                <label>設備資產編號 (Asset No)</label>
+                <input type="text" id="editAssetNo" placeholder="請輸入資產編號">
+            </div>
+            <div class="form-group">
+                <label>設備序號 (SID)</label>
+                <input type="text" id="editSid" placeholder="請輸入設備序號">
+            </div>
+            <div class="modal-btn-group" style="margin-top: 25px;">
+                <button class="btn-modal-cancel" id="cancelEditBtn">取消</button>
+                <button class="btn-modal-save" id="saveEditBtn">儲存變更</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 登出確認 Modal -->
     <div class="modal-overlay" id="logoutModal">
         <div class="modal-container">
             <div class="modal-close" id="closeLogoutModal">X</div>
@@ -495,54 +557,313 @@
         </div>
     </div>
 
+    <!-- Flatpickr JS 與 繁體中文語系包 -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh-tw.js"></script>
+
     <script>
-        // 表格全選 / 全不選功能
+        const DEVSEL_API_URL = '<?= $g_root_url ?>api/JTG_devselection.php';
+        const DEV_API_URL = '<?= $g_root_url ?>api/JTG_device.php';
+        const SSO_TOKEN = '<?= htmlspecialchars($sso_token); ?>';
+
+        let currentDeviceList = []; // 快取當前設備資料
+        let debounceTimer = null;
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            return dateStr.split(' ')[0];
+        }
+
+        // =========================================================
+        // 1. 動態載入量測設備選單
+        // =========================================================
+        async function loadDeviceOptions() {
+            const selectElem = document.getElementById('deviceSelect');
+            const editSelectElem = document.getElementById('editDeviceType');
+
+            try {
+                const params = new URLSearchParams();
+                params.append('sso_token', SSO_TOKEN);
+                params.append('get_all', '0');
+
+                const response = await fetch(`${DEVSEL_API_URL}?${params.toString()}`, { method: 'GET' });
+                const res = await response.json();
+
+                let deviceList = [];
+                if (res.status === 'true' && res.data && Array.isArray(res.data.data)) {
+                    deviceList = res.data.data;
+                } else if (res.status === 'true' && Array.isArray(res.data)) {
+                    deviceList = res.data;
+                }
+
+                let filterOptionsHtml = '<option value="">全部設備</option>';
+                let editOptionsHtml = '<option value="">請選擇設備</option>';
+
+                if (deviceList.length > 0) {
+                    const options = deviceList.map(dev => `
+                        <option value="${escapeHtml(dev.device_type)}">
+                            ${escapeHtml(dev.device_name)}
+                        </option>
+                    `).join('');
+
+                    filterOptionsHtml += options;
+                    editOptionsHtml += options;
+                }
+
+                selectElem.innerHTML = filterOptionsHtml;
+                editSelectElem.innerHTML = editOptionsHtml;
+            } catch (err) {
+                console.error('載入量測設備選單失敗:', err);
+                selectElem.innerHTML = '<option value="">載入失敗</option>';
+                editSelectElem.innerHTML = '<option value="">載入失敗</option>';
+            }
+        }
+
+        // =========================================================
+        // 2. 從 JTG_devselection API 撈取設備清單
+        // =========================================================
+        async function fetchDeviceList() {
+            const tbody = document.getElementById('deviceTableBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="no-data">資料載入中...</td></tr>';
+
+            const selectedType = document.getElementById('deviceSelect').value;
+            const searchKeyword = document.getElementById('searchInput').value.trim();
+
+            try {
+                const params = new URLSearchParams();
+                params.append('sso_token', SSO_TOKEN);
+                params.append('get_all', '0'); // 撈取正常狀態設備
+
+                if (selectedType) {
+                    params.append('device_type', selectedType);
+                }
+
+                const response = await fetch(`${DEV_API_URL}?${params.toString()}`, { method: 'GET' });
+                const res = await response.json();
+
+                if (res.status === 'true' && res.data && Array.isArray(res.data.data)) {
+                    currentDeviceList = res.data.data;
+                } else if (res.status === 'true' && Array.isArray(res.data)) {
+                    currentDeviceList = res.data;
+                } else {
+                    currentDeviceList = [];
+                }
+
+                renderTable(searchKeyword);
+            } catch (err) {
+                console.error('取得設備資料失敗:', err);
+                tbody.innerHTML = '<tr><td colspan="7" class="no-data">載入失敗，請重試</td></tr>';
+            }
+        }
+
+        // =========================================================
+        // 3. 渲染資料表格 (含前端關鍵字篩選)
+        // =========================================================
+        function renderTable(keyword = '') {
+            const tbody = document.getElementById('deviceTableBody');
+            const searchLower = keyword.toLowerCase();
+
+            let filteredList = currentDeviceList.filter(row => {
+                if (!keyword) return true;
+                const matchText = `${row.device_name || ''} ${row.asset_no || ''} ${row.sid || ''} ${row.device_type || ''}`.toLowerCase();
+                return matchText.includes(searchLower);
+            });
+
+            if (filteredList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="no-data">查無符合條件的設備資料</td></tr>';
+                return;
+            }
+
+            let html = '';
+            filteredList.forEach(row => {
+                html += `
+                    <tr>
+                        <td class="checkbox-col">
+                            <input type="checkbox" class="row-checkbox" value="${escapeHtml(row.id)}" data-sid="${escapeHtml(row.sid)}">
+                        </td>
+                        <td>${escapeHtml(row.device_name || row.device_type || '-')}</td>
+                        <td>${escapeHtml(row.asset_no || '-')}</td>
+                        <td>${escapeHtml(row.sid || '-')}</td>
+                        <td>${escapeHtml(formatDate(row.created_at))}</td>
+                        <td>${escapeHtml(formatDate(row.updated_at))}</td>
+                        <td>
+                            <button class="btn-edit" 
+                                onclick="openEditModalById(${row.id})">編輯</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        // =========================================================
+        // 4. 開啟並填入編輯 Modal 內容
+        // =========================================================
+        function openEditModalById(id) {
+            const target = currentDeviceList.find(item => String(item.id) === String(id));
+            if (!target) return;
+
+            document.getElementById('editTargetId').value = target.id;
+            document.getElementById('editDeviceType').value = target.device_type || '';
+            document.getElementById('editDeviceName').value = target.device_name || '';
+            document.getElementById('editAssetNo').value = target.asset_no || '';
+            document.getElementById('editSid').value = target.sid || '';
+
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        // =========================================================
+        // 5. 初始化 Flatpickr 日期選擇器
+        // =========================================================
+        function initDateRangePicker() {
+            flatpickr("#dateRangeInput", {
+                mode: "range",
+                dateFormat: "Y-m-d",
+                locale: "zh_tw",
+                locale: { rangeSeparator: " - " },
+                onChange: function(selectedDates, dateStr, instance) {
+                    if (selectedDates.length === 2) {
+                        fetchDeviceList();
+                    }
+                }
+            });
+        }
+
+        // 事件監聽與綁定
         document.getElementById('selectAll').addEventListener('change', function() {
             document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = this.checked);
         });
 
-        // --- 批次新增 Modal 控制邏輯 ---
+        document.getElementById('deviceSelect').addEventListener('change', fetchDeviceList);
+
+        document.getElementById('searchInput').addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                renderTable(this.value.trim());
+            }, 300);
+        });
+
+        // Modal 動作控制
         const batchModal = document.getElementById('batchModal');
-        const openBatchModalBtn = document.getElementById('openBatchModal');
-        const closeBatchModalBtn = document.getElementById('closeBatchModal');
+        document.getElementById('openBatchModal').addEventListener('click', () => batchModal.style.display = 'flex');
+        document.getElementById('closeBatchModal').addEventListener('click', () => batchModal.style.display = 'none');
 
-        openBatchModalBtn.addEventListener('click', function() {
-            batchModal.style.display = 'flex';
+        // --- 刪除功能 API 串接 ---
+        const deleteModal = document.getElementById('deleteModal');
+        let selectedDeleteIds = [];
+
+        document.getElementById('openDeleteModal').addEventListener('click', function() {
+            const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+            if (checkedBoxes.length === 0) {
+                alert('請先勾選要刪除的項目！');
+                return;
+            }
+            selectedDeleteIds = Array.from(checkedBoxes).map(cb => cb.value);
+            document.getElementById('deleteModalDesc').textContent = `確定要刪除選取的 ${selectedDeleteIds.length} 筆設備資料嗎？`;
+            deleteModal.style.display = 'flex';
         });
 
-        closeBatchModalBtn.addEventListener('click', function() {
-            batchModal.style.display = 'none';
+        document.getElementById('closeDeleteModal').addEventListener('click', () => deleteModal.style.display = 'none');
+        document.getElementById('cancelDeleteBtn').addEventListener('click', () => deleteModal.style.display = 'none');
+
+        document.getElementById('confirmDeleteBtn').addEventListener('click', async function() {
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const id of selectedDeleteIds) {
+                try {
+                    const response = await fetch(DEV_API_URL, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sso_token: SSO_TOKEN,
+                            id: parseInt(id),
+                            who_call: 'device_list'
+                        })
+                    });
+                    const res = await response.json();
+                    if (res.status === 'true') {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (err) {
+                    failCount++;
+                }
+            }
+
+            alert(`刪除完成！成功：${successCount} 筆，失敗：${failCount} 筆`);
+            deleteModal.style.display = 'none';
+            fetchDeviceList();
         });
 
-        // --- 登出 Modal 控制邏輯 ---
+        // --- 編輯功能 API 串接 (PATCH) ---
+        const editModal = document.getElementById('editModal');
+        document.getElementById('closeEditModal').addEventListener('click', () => editModal.style.display = 'none');
+        document.getElementById('cancelEditBtn').addEventListener('click', () => editModal.style.display = 'none');
+
+        document.getElementById('saveEditBtn').addEventListener('click', async function() {
+            const id = document.getElementById('editTargetId').value;
+            const deviceType = document.getElementById('editDeviceType').value;
+            const deviceName = document.getElementById('editDeviceName').value;
+            const assetNo = document.getElementById('editAssetNo').value;
+            const sid = document.getElementById('editSid').value;
+
+            if (!id) return;
+
+            try {
+                const response = await fetch(DEV_API_URL, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sso_token: SSO_TOKEN,
+                        id: parseInt(id),
+                        device_type: deviceType,
+                        device_name: deviceName,
+                        asset_no: assetNo,
+                        sid: sid,
+                        who_call: 'device_list'
+                    })
+                });
+
+                const res = await response.json();
+                if (res.status === 'true') {
+                    alert('設備資料修改成功！');
+                    editModal.style.display = 'none';
+                    fetchDeviceList();
+                } else {
+                    alert('修改失敗：' + (res.message || '未知錯誤'));
+                }
+            } catch (err) {
+                console.error('儲存變更失敗:', err);
+                alert('系統連線異常，儲存變更失敗！');
+            }
+        });
+
+        // 登出 Modal
         const logoutModal = document.getElementById('logoutModal');
-        const openLogoutModalBtn = document.getElementById('openLogoutModal');
-        const closeLogoutModalBtn = document.getElementById('closeLogoutModal');
-        const cancelLogoutBtn = document.getElementById('cancelLogoutBtn');
+        document.getElementById('openLogoutModal').addEventListener('click', () => logoutModal.style.display = 'flex');
+        document.getElementById('closeLogoutModal').addEventListener('click', () => logoutModal.style.display = 'none');
+        document.getElementById('cancelLogoutBtn').addEventListener('click', () => logoutModal.style.display = 'none');
 
-        // 開啟登出 Modal
-        openLogoutModalBtn.addEventListener('click', function() {
-            logoutModal.style.display = 'flex';
-        });
-
-        // 關閉登出 Modal (按右上角 X)
-        closeLogoutModalBtn.addEventListener('click', function() {
-            logoutModal.style.display = 'none';
-        });
-
-        // 關閉登出 Modal (按取消按鈕)
-        cancelLogoutBtn.addEventListener('click', function() {
-            logoutModal.style.display = 'none';
-        });
-
-        // 點擊背景空白處通用關閉邏輯
         window.addEventListener('click', function(e) {
-            if (e.target === batchModal) {
-                batchModal.style.display = 'none';
-            }
-            if (e.target === logoutModal) {
-                logoutModal.style.display = 'none';
-            }
+            if (e.target === batchModal) batchModal.style.display = 'none';
+            if (e.target === deleteModal) deleteModal.style.display = 'none';
+            if (e.target === editModal) editModal.style.display = 'none';
+            if (e.target === logoutModal) logoutModal.style.display = 'none';
+        });
+
+        // 頁面初始化
+        document.addEventListener('DOMContentLoaded', async function() {
+            initDateRangePicker();
+            await loadDeviceOptions();
+            await fetchDeviceList();
         });
     </script>
 </body>

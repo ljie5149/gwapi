@@ -312,7 +312,7 @@ CREATE TABLE data_device (
 
     sid             VARCHAR(50)                 NOT NULL                    COMMENT '設備資料唯一識別碼SID',
 
-    pc_mac          VARCHAR(100)                    NULL                    COMMENT '電腦MAC序號',
+    pc_mac          VARCHAR(100)                NOT NULL    DEFAULT 'WEB'   COMMENT '電腦MAC序號',
 
     asset_no        VARCHAR(100)                NOT NULL                    COMMENT '設備資產序號',
 
@@ -368,7 +368,7 @@ CREATE TABLE log_device (
 
     sid             VARCHAR(50)                     NULL                    COMMENT '設備資料唯一識別碼SID',
 
-    pc_mac          VARCHAR(100)                    NULL                    COMMENT '電腦MAC序號',
+    pc_mac          VARCHAR(100)                NOT NULL    DEFAULT 'WEB'   COMMENT '電腦MAC序號',
 
     asset_no        VARCHAR(100)                    NULL                    COMMENT '設備資產序號',
 
@@ -415,6 +415,16 @@ CREATE TABLE log_message (
     script				TEXT	 			NULL COMMENT '說明'			,
     remark				TEXT	 			NULL COMMENT '備註'
 ) COMMENT '訊息紀錄資料表';
+
+CREATE TABLE log_progress (
+    nid					INT(20) 		UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '流水號',
+    member_sid 			VARCHAR(20) 	NOT NULL COMMENT '會員'		,
+    create_date 		DATETIME		NOT NULL COMMENT '建立日期'		,
+    modify_date 		DATETIME		 	NULL COMMENT '修改日期'		,
+    file_name			TEXT 			NOT NULL COMMENT '檔案名稱'		,
+    flag		 		VARCHAR(50) 	NOT NULL COMMENT '匯入或匯出'	, -- import / export
+    percentage			INT(3)			NOT NULL COMMENT '百分比'
+) COMMENT '匯入/匯出百分比資料表';
 
 CREATE TABLE data_user (
     nid 				INT(20) 		UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '流水號',

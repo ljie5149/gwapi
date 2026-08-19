@@ -156,8 +156,7 @@
                             while ($row = mysqli_fetch_assoc($result)) {
                                 array_push($query_rows_tmp, $row);
                             }
-                            $query_rows["data"] = $query_rows_tmp;
-                            $data = result_message("true", "0x0200", "取得 $caption 成功", $query_rows);
+                            $data = result_message("true", "0x0200", "取得 $caption 成功", $query_rows_tmp);
                         } else {
                             $data = result_message("false", "0x0204", "查無 $caption 資料", $null_array);
                         }
