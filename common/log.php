@@ -67,7 +67,7 @@
 	}
 	
 	// write log core
-	function wh_log_core($remote_ip, $log_msg, $Person_id = "", $file_header)
+	function wh_log_core($remote_ip, $log_msg, $Person_id, $file_header)
 	{
 		global $log_path;
 		global $glogfile;

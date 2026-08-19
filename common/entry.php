@@ -39,7 +39,6 @@
 	include("db_tools.php");
 	include("funcCore.php");
 	include("api_core.php");
-	include("pdf_core.php");
     include("accessdb.php");
     include("author_define.php");
     include("fcmnotify.php");
@@ -730,10 +729,12 @@
 				}
 			}
 			$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
-			$file_name = date("YmdHi").$file_tmp.'.xlsx';
+			// $file_name = date("YmdHi").$file_tmp.'.xlsx';
+			$file_name = $file_tmp.'.xlsx';
 			$j = 1;
 			while (file_exists($g_xlsx_out_path.$file_name)) {
-				$file_name = date("YmdHi").$file_tmp.'_'.$j.'.xlsx';
+				// $file_name = date("YmdHi").$file_tmp.'_'.$j.'.xlsx';
+				$file_name = $file_tmp.'_'.$j.'.xlsx';
 				$j++;
 			}
 			$objWriter->save($g_xlsx_out_path.$file_name);

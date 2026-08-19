@@ -1,8 +1,9 @@
 <?php
     include_once('common/entry.php');
     global $g_root_url, $g_is_online, $g_online_zhtw, $g_backend_title, $g_supperuser_all;
-    $username = $_SESSION['accname'] ?? "";
-    $userrole = $_SESSION['user_role'] ?? "";
+    $username  = $_SESSION['accname'] ?? "";
+    $userrole  = $_SESSION['user_role'] ?? "";
+    $member_id = $_SESSION['member_id'] ?? $_SESSION['accname'] ?? "admin";
     $sso_token = $_SESSION['sso_token'] ?? "";
 
     uiLocationPage();
@@ -26,393 +27,7 @@
     <!-- Flatpickr 日期選擇器套件 CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: "Microsoft JhengHei", "微軟正黑體", Arial, sans-serif;
-        }
-
-        body {
-            background-color: #e3e3e3;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* 頂部導航列 */
-        .navbar {
-            background-color: #2b79a2;
-            color: #ffffff;
-            height: 50px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 20px;
-        }
-
-        .nav-links {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            font-size: 16px;
-        }
-
-        .nav-links a {
-            color: #ffffff;
-            text-decoration: none;
-        }
-
-        .nav-links .separator {
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            font-size: 15px;
-        }
-
-        .logout-btn {
-            background-color: #6b8296;
-            color: #ffffff;
-            text-decoration: none;
-            padding: 4px 14px;
-            border-radius: 15px;
-            font-size: 14px;
-            transition: background 0.2s;
-            cursor: pointer;
-            border: none;
-        }
-
-        .logout-btn:hover { background-color: #55697a; }
-
-        /* 主區域 */
-        .main-container {
-            padding: 20px 40px;
-            flex: 1;
-        }
-
-        .page-title {
-            font-size: 28px;
-            font-weight: bold;
-            color: #1a1a1a;
-            margin-bottom: 20px;
-        }
-
-        /* 篩選與工具列 */
-        .filter-row {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .filter-label {
-            font-size: 20px;
-            font-weight: bold;
-            color: #222222;
-        }
-
-        .select-container select {
-            background-color: #ffffff;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            padding: 6px 40px 6px 15px;
-            font-size: 18px;
-            outline: none;
-            appearance: none;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='gray'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 10px center;
-            background-size: 20px;
-            min-width: 220px;
-        }
-
-        .date-input-container {
-            background-color: #ffffff;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            padding: 6px 12px;
-            display: flex;
-            align-items: center;
-            cursor: pointer;
-        }
-
-        .date-input-container input {
-            border: none;
-            outline: none;
-            font-size: 18px;
-            width: 260px;
-            color: #333;
-            background: transparent;
-            cursor: pointer;
-        }
-
-        /* 搜尋與操作按鈕列 */
-        .search-row {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .search-input {
-            flex: 1;
-            height: 42px;
-            border: 1px solid #cccccc;
-            border-radius: 8px;
-            padding: 0 15px;
-            font-size: 18px;
-            outline: none;
-            background-color: #ffffff;
-        }
-
-        /* 按鈕樣式 */
-        .btn-batch-add {
-            background-color: #124b6e;
-            color: #ffffff;
-            border: none;
-            border-radius: 8px;
-            padding: 8px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .btn-delete {
-            background-color: #b82828;
-            color: #ffffff;
-            border: none;
-            border-radius: 8px;
-            padding: 8px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        /* 資料表格卡片 */
-        .table-card {
-            background-color: #f7f7f7;
-            border-radius: 4px;
-            border: 1px solid #d0d0d0;
-            min-height: 480px;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-        }
-
-        .data-table th {
-            background-color: #cde4f7;
-            padding: 12px 20px;
-            font-size: 18px;
-            font-weight: bold;
-            color: #1a1a1a;
-        }
-
-        .data-table td {
-            padding: 14px 20px;
-            font-size: 18px;
-            color: #1a1a1a;
-            border-bottom: 1px solid #eaeaea;
-        }
-
-        .checkbox-col {
-            width: 60px;
-            text-align: center;
-        }
-
-        .data-table input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-
-        .no-data {
-            text-align: center;
-            padding: 30px;
-            color: #888;
-            font-size: 18px;
-        }
-
-        /* 編輯按鈕 */
-        .btn-edit {
-            background-color: #797979;
-            color: #ffffff;
-            border: none;
-            padding: 6px 30px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .btn-edit:hover { background-color: #636363; }
-
-        /* 分頁區塊 */
-        .pagination {
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            gap: 8px;
-            padding: 20px 40px;
-            font-size: 15px;
-            color: #555;
-        }
-
-        .page-link {
-            color: #555;
-            text-decoration: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-        }
-
-        .page-link.active {
-            background-color: #333333;
-            color: #ffffff;
-            font-weight: bold;
-        }
-
-        .page-link.disabled { color: #aaa; cursor: default; }
-
-        /* Modal 通用樣式 */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.35);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-container {
-            background-color: #ffffff;
-            width: 520px;
-            border-radius: 6px;
-            padding: 35px 30px 45px 30px;
-            position: relative;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            text-align: center;
-        }
-
-        .modal-close {
-            position: absolute;
-            top: -15px;
-            right: -15px;
-            width: 32px;
-            height: 32px;
-            background-color: #636c74;
-            color: #ffffff;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            user-select: none;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-
-        .modal-title {
-            font-size: 32px;
-            font-weight: bold;
-            color: #000000;
-            margin-bottom: 25px;
-        }
-
-        .modal-desc {
-            font-size: 18px;
-            color: #222222;
-            margin-bottom: 35px;
-        }
-
-        .modal-btn-group {
-            display: flex;
-            justify-content: center;
-            gap: 25px;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-            text-align: left;
-        }
-        .form-group label {
-            display: block;
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 5px;
-            color: #333;
-        }
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 8px 12px;
-            font-size: 16px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-
-        .btn-modal-download {
-            background-color: #124b6e;
-            color: #ffffff;
-            border: none;
-            padding: 12px 35px;
-            border-radius: 12px;
-            font-size: 22px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
-        }
-
-        .btn-modal-upload, .btn-modal-confirm-delete, .btn-modal-save {
-            background-color: #ef4c3c;
-            color: #ffffff;
-            border: none;
-            padding: 12px 35px;
-            border-radius: 12px;
-            font-size: 22px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
-        }
-
-        .btn-modal-save { background-color: #28a745; }
-
-        .btn-modal-cancel {
-            background-color: #797979;
-            color: #ffffff;
-            border: none;
-            padding: 12px 35px;
-            border-radius: 12px;
-            font-size: 22px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
-        }
-
-        .btn-modal-confirm-logout {
-            background-color: #ef4c3c;
-            color: #ffffff;
-            border: none;
-            padding: 12px 35px;
-            border-radius: 12px;
-            font-size: 22px;
-            font-weight: bold;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
-        }
-    </style>
+    <link href="./css/device_list.css" rel="stylesheet">
 </head>
 <body>
 
@@ -494,8 +109,17 @@
             <h2 class="modal-title">批次新增</h2>
             <p class="modal-desc">請下載範例檔後依格式填入後上傳</p>
             <div class="modal-btn-group">
-                <button class="btn-modal-download">範例檔下載</button>
+                <button class="btn-modal-download" id="downloadSampleBtn">範例檔下載</button>
                 <button class="btn-modal-upload">回填上傳</button>
+            </div>
+
+            <!-- 新增進度條顯示區域 -->
+            <div class="progress-box" id="downloadProgressBox">
+                <div class="progress-file-info" id="progressFileName">檔名：-</div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progressBarFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">準備下載中 (0%)</div>
             </div>
         </div>
     </div>
@@ -563,8 +187,12 @@
 
     <script>
         const DEVSEL_API_URL = '<?= $g_root_url ?>api/JTG_devselection.php';
-        const DEV_API_URL = '<?= $g_root_url ?>api/JTG_device.php';
-        const SSO_TOKEN = '<?= htmlspecialchars($sso_token); ?>';
+        const DEV_API_URL    = '<?= $g_root_url ?>api/JTG_device.php';
+        const EXPORT_API_URL = '<?= $g_root_url ?>api/export2excel.php';
+        const PROGRESS_API_URL = '<?= $g_root_url ?>api/progress.php';
+        const DEL_PROGRESS_API_URL = '<?= $g_root_url ?>api/delete_progress.php';
+        const MEMBER_ID      = '<?= htmlspecialchars($member_id); ?>';
+        const SSO_TOKEN      = '<?= htmlspecialchars($sso_token); ?>';
 
         let currentDeviceList = []; // 快取當前設備資料
         let debounceTimer = null;
@@ -578,6 +206,162 @@
             if (!dateStr) return '-';
             return dateStr.split(' ')[0];
         }
+
+        // 產生日期時間字串 (YYYYMMDD_HHMMSS)
+        function getFormattedDateTimeStr() {
+            const now = new Date();
+            const YYYY = now.getFullYear();
+            const MM = String(now.getMonth() + 1).padStart(2, '0');
+            const DD = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            return `${YYYY}${MM}${DD}_${hh}${mm}${ss}`;
+        }
+
+        // =========================================================
+        // 範例檔下載與進度條功能[cite: 1, 3]
+        // =========================================================
+        document.getElementById('downloadSampleBtn').addEventListener('click', async function() {
+            const btn = this;
+            const progressBox = document.getElementById('downloadProgressBox');
+            const progressFileName = document.getElementById('progressFileName');
+            const progressBarFill = document.getElementById('progressBarFill');
+            const progressText = document.getElementById('progressText');
+
+            // 1. 產生檔名：device_list_下載日期時間.xls
+            const filename = `device_list_${getFormattedDateTimeStr()}`;
+
+            // UI 初始設定
+            btn.disabled = true;
+            btn.style.opacity = '0.6';
+            progressBox.style.display = 'block';
+            progressFileName.textContent = `檔名：${filename}.xlsx`;
+            progressBarFill.style.width = '0%';
+            progressText.textContent = '準備匯出資料 (0%)';
+
+            let progressInterval = null;
+
+            // 輪詢進度函式
+            const startPollingProgress = () => {
+                progressInterval = setInterval(async () => {
+                    try {
+                        const formData = new FormData();
+                        formData.append('memberid', MEMBER_ID);
+                        formData.append('filename', filename);
+                        formData.append('flag', 'export');
+
+                        const res = await fetch(PROGRESS_API_URL, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await res.json();
+
+                        if (data.status === 'true' && data.data) {
+                            const percent = parseInt(data.data.percentage || 0);
+                            progressBarFill.style.width = `${percent}%`;
+                            progressText.textContent = `處理中... (${percent}%)`;
+                        }
+                    } catch (e) {
+                        console.error('查詢進度發生錯誤:', e);
+                    }
+                }, 500);
+            };
+
+            try {
+                // 啟動進度輪詢
+                startPollingProgress();
+
+                // 2. 呼叫匯出 API (export2excel.php)[cite: 1]
+                const formData = new FormData();
+                formData.append('filename', filename);
+                formData.append('memberid', MEMBER_ID);
+                formData.append('caption', '設備清單範例檔');
+                formData.append('table', 'data_device');
+
+                const jsonObject = Object.fromEntries(formData.entries());
+                console.log(jsonObject);
+                const response = await fetch(EXPORT_API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                // console.log(response);
+                clearInterval(progressInterval);
+
+                if (result.status === 'true') {
+                    progressBarFill.style.width = '100%';
+                    progressText.textContent = '匯出完成 (100%)，開始下載...';
+
+                    let downloadUrl = '';
+                    if (result.data) {
+                        try {
+                            const parsedData = JSON.parse(result.data);
+                            downloadUrl = parsedData.download_file_name || '';
+                        } catch(e) {
+                            downloadUrl = '';
+                        }
+                    }
+
+                    // 1. 補全副檔名 (若後端傳回網址未包含 .xlsx)
+                    if (downloadUrl && !downloadUrl.endsWith('.xlsx')) {
+                        downloadUrl += '.xlsx';
+                    }
+
+                    // 2. 處理相對路徑與 HTTP/HTTPS 混合問題
+                    if (!downloadUrl) {
+                        downloadUrl = `excel/export/${filename}.xlsx`;
+                    }
+
+                    // 如果當前頁面是 HTTPS，將下載連結的 http:// 自動替換為 https://
+                    if (window.location.protocol === 'https:' && downloadUrl.startsWith('http://')) {
+                        downloadUrl = downloadUrl.replace('http://', 'https://');
+                    }
+
+                    // 3. 透過 Blob 方式下載 (可100%繞過瀏覽器對 HTTP/HTTPS 混合下載的封鎖限制)
+                    fetch(downloadUrl)
+                        .then(response => {
+                            if (!response.ok) throw new Error('Network response was not ok');
+                            return response.blob();
+                        })
+                        .then(blob => {
+                            const blobUrl = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = blobUrl;
+                            a.download = `${filename}.xlsx`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            window.URL.revokeObjectURL(blobUrl);
+                        })
+                        .catch(err => {
+                            console.error('Blob 下載失敗，改用直接跳轉:', err);
+                            // 備援方案：若 Fetch 被檔，直接用 window.open
+                            window.open(downloadUrl, '_blank');
+                        });
+
+                    // 4. 刪除後端進度紀錄
+                    const delFormData = new FormData();
+                    delFormData.append('memberid', MEMBER_ID);
+                    delFormData.append('filename', `${filename}.xlsx`);
+                    delFormData.append('flag', 'export');
+                    await fetch(DEL_PROGRESS_API_URL, { method: 'POST', body: delFormData });
+
+                } else {
+                    alert('匯出失敗：' + (result.responseMessage || '系統異常'));
+                }
+            } catch (err) {
+                console.log('範例檔下載失敗:', err);
+                alert('範例檔下載失敗，請連線後重試！');
+            } finally {
+                clearInterval(progressInterval);
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                setTimeout(() => {
+                    progressBox.style.display = 'none';
+                }, 2000);
+            }
+        });
 
         // =========================================================
         // 1. 動態載入量測設備選單
@@ -637,7 +421,7 @@
             try {
                 const params = new URLSearchParams();
                 params.append('sso_token', SSO_TOKEN);
-                params.append('get_all', '0'); // 撈取正常狀態設備
+                params.append('get_all', '0');
 
                 if (selectedType) {
                     params.append('device_type', selectedType);

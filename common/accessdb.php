@@ -564,8 +564,7 @@
         // 通用資料庫函式 - 新增百分比資料
         public function modifyProgress($link, $mid, $file_name, $percentage, $flag='import')
         {
-            global $g_db_table;
-			$table = $g_db_table['logprogress'];
+			$table = 'log_progress';
 
             $sql = "SELECT count(*) AS row_count FROM $table where member_sid='$mid' AND file_name='$file_name' AND flag='$flag';";
             if ($this->getRowcount($link, $sql) == 0) {
@@ -588,8 +587,7 @@
         // 通用資料庫函式 - 取得百分比數值
         public function getProgressPercentage($link, $mid, $file_name, $flag='import')
         {
-            global $g_db_table;
-			$table = $g_db_table['logprogress'];
+			$table = 'log_progress';
 
             $ret = 0;
             $sql = "SELECT percentage FROM $table WHERE member_sid='$mid' AND file_name='$file_name' AND flag='$flag';";
@@ -604,8 +602,7 @@
         // 通用資料庫函式 - 刪除百分比資料
         public function deleteProgress($link, $mid, $file_name, $flag='import')
         {
-            global $g_db_table;
-			$table = $g_db_table['logprogress'];
+			$table = 'log_progress';
 
             $ret = 0;
             $sql = "DELETE FROM $table WHERE member_sid='$mid' AND file_name='$file_name' AND flag='$flag';";

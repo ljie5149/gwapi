@@ -81,6 +81,7 @@
 	$g_live_dir 						= $g_root_dir."live/"								; // 照片 directory
 	$g_attachment_dir 					= $g_root_dir."attachment/"							; // 附件照片 directory
 	$g_watermark_src_url 				= $g_root_url."watermark.png"						; // 浮水印來源
+	$g_xlsx_out_url		  	 			= $g_root_url."excel/export/"						; // excel directory
 
 	$g_newsimg_path 					= "images/upload/news/"								; // 最新消息上傳照片路徑
 	$g_bannerimg_path 					= "images/upload/banner/"							; // 最新消息上傳照片路徑
