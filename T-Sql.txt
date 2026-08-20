@@ -314,7 +314,7 @@ CREATE TABLE data_device (
 
     pc_mac          VARCHAR(100)                NOT NULL    DEFAULT 'WEB'   COMMENT '電腦MAC序號',
 
-    asset_no        VARCHAR(100)                NOT NULL                    COMMENT '設備資產序號',
+    asset_no        VARCHAR(100)                NOT NULL                    COMMENT '序號',
 
     device_type     VARCHAR(100)                NOT NULL                    COMMENT '設備類型代碼',
 
@@ -322,7 +322,7 @@ CREATE TABLE data_device (
 
     receive_mode    VARCHAR(100)                    NULL                    COMMENT '設備資料接收模式',
 
-    tag             VARCHAR(100)                    NULL                    COMMENT '設備識別標籤',
+    tag             VARCHAR(100)                    NULL                    COMMENT '設備編號',
 
     port_name       VARCHAR(20)                 NOT NULL    DEFAULT 'NONE'  COMMENT '串列埠名稱',
 
@@ -352,7 +352,7 @@ CREATE TABLE data_device (
 
     UNIQUE KEY uk_sid (sid),
 
-    UNIQUE KEY uk_device_type (device_type),
+    KEY idx_uk_device_type (device_type),
 
     KEY idx_device_name (device_name),
 
@@ -370,7 +370,7 @@ CREATE TABLE log_device (
 
     pc_mac          VARCHAR(100)                NOT NULL    DEFAULT 'WEB'   COMMENT '電腦MAC序號',
 
-    asset_no        VARCHAR(100)                    NULL                    COMMENT '設備資產序號',
+    asset_no        VARCHAR(100)                    NULL                    COMMENT '序號',
 
     device_type     VARCHAR(100)                    NULL                    COMMENT '設備類型代碼',
 

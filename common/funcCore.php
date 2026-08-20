@@ -1,4 +1,14 @@
 <?php
+	function gfindStrInArray($haystack, $needle) {
+		foreach ($haystack as $index => $value) {
+			// 使用 mb_strpos 避免中文截斷，只要包含目標關鍵字即符合
+			if (mb_strpos($value, $needle) !== false) {
+				return $index; // 回傳索引 1
+			}
+		}
+		return null;
+	}
+	
 	function getVariant($obj, $field_name)
 	{
 		return isset($obj[$field_name]) ? $obj[$field_name] : "";

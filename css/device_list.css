@@ -421,3 +421,126 @@
             margin-top: 5px;
             color: #555;
         }
+
+
+        
+        /* 檔案拖拽上傳區塊樣式 */
+        .upload-drop-zone {
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            padding: 30px 15px;
+            text-align: center;
+            background-color: #f8f9fa;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+            margin: 15px 0;
+        }
+        .upload-drop-zone.dragover {
+            background-color: #e2eefd;
+            border-color: #0056b3;
+        }
+        .upload-icon {
+            font-size: 36px;
+            display: block;
+            margin-bottom: 8px;
+        }
+        .upload-text {
+            font-size: 14px;
+            color: #555;
+            margin: 0;
+            word-break: break-all;
+        }
+
+        /* 進度條外觀樣式 */
+        .progress-box {
+            background-color: #f1f3f5;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 15px;
+        }
+        .progress-file-info {
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 6px;
+            word-break: break-all;
+            text-align: left;
+        }
+        .progress-bar-bg {
+            width: 100%;
+            height: 12px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background-color: #28a745;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 6px;
+            text-align: right;
+        }
+
+        /* 按鈕禁用灰階樣式 */
+        .btn-modal-save:disabled,
+        .btn-modal-save.btn-disabled {
+            background-color: #6c757d !important;
+            border-color: #6c757d !important;
+            filter: grayscale(100%);
+            opacity: 0.6;
+            cursor: not-allowed !important;
+        }
+
+        /* 結果顯示區域與失敗清單表格 */
+        .result-summary-box {
+            margin-top: 15px;
+            text-align: left;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 12px;
+        }
+        .summary-badges {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .badge-success { color: #28a745; }
+        .badge-update  { color: #17a2b8; }
+        .badge-fail    { color: #dc3545; }
+        
+        .fail-detail-area {
+            margin-top: 10px;
+            max-height: 160px;
+            overflow-y: auto;
+            border: 1px solid #f5c6cb;
+            background-color: #fff5f5;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        .fail-detail-title {
+            color: #721c24;
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+        .fail-table {
+            width: 100%;
+            font-size: 12px;
+            border-collapse: collapse;
+        }
+        .fail-table th, .fail-table td {
+            padding: 5px;
+            border-bottom: 1px solid #f1d1d5;
+            text-align: left;
+        }
+        .fail-table th {
+            background-color: #f8d7da;
+            color: #721c24;
+        }

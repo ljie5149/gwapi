@@ -7,7 +7,6 @@
     $sso_token = $_SESSION['sso_token'] ?? "";
 
     uiLocationPage();
-    $cloud_url = ($g_is_online) ? "online_cloud.php" : "offline_cloud.php";
     $cloud_url = "online_cloud.php";
     $org_str = "";
     if ($userrole == "superuser") {
@@ -26,14 +25,14 @@
     
     <!-- Flatpickr 日期選擇器套件 CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-
     <link href="./css/device_list.css" rel="stylesheet">
 </head>
 <body>
 
     <!-- 頂部導航列 -->
     <header class="navbar">
-        <nav class="nav-links"><span><?= $g_online_zhtw ?></span>
+        <nav class="nav-links">
+            <span><?= $g_online_zhtw ?></span>
             <a href="dashboard.php">資料管理</a>
             <span class="separator">|</span>
             <a href="device_list.php" style="font-weight: bold;">設備序號清單</a>
@@ -50,7 +49,7 @@
     <main class="main-container">
         <h1 class="page-title">設備序號清單</h1>
 
-        <!-- 第一排：篩選列 -->
+        <!-- 篩選列 -->
         <div class="filter-row">
             <span class="filter-label">量測設備</span>
             <div class="select-container">
@@ -66,7 +65,7 @@
             </div>
         </div>
 
-        <!-- 第二排：搜尋與動作按鈕 -->
+        <!-- 搜尋與動作按鈕 -->
         <div class="search-row">
             <span class="filter-label">搜尋</span>
             <input type="text" id="searchInput" class="search-input" placeholder="搜尋序號或設備名稱...">
@@ -110,16 +109,63 @@
             <p class="modal-desc">請下載範例檔後依格式填入後上傳</p>
             <div class="modal-btn-group">
                 <button class="btn-modal-download" id="downloadSampleBtn">範例檔下載</button>
-                <button class="btn-modal-upload">回填上傳</button>
+                <button class="btn-modal-upload" id="openUploadModalBtn">回填上傳</button>
             </div>
 
-            <!-- 新增進度條顯示區域 -->
-            <div class="progress-box" id="downloadProgressBox">
+            <!-- 下載進度條區域 -->
+            <div class="progress-box" id="downloadProgressBox" style="display: none;">
                 <div class="progress-file-info" id="progressFileName">檔名：-</div>
                 <div class="progress-bar-bg">
                     <div class="progress-bar-fill" id="progressBarFill"></div>
                 </div>
                 <div class="progress-text" id="progressText">準備下載中 (0%)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 回填上傳 Modal -->
+    <div class="modal-overlay" id="uploadModal">
+        <div class="modal-container" style="max-width: 550px;">
+            <div class="modal-close" id="closeUploadModal">X</div>
+            <h2 class="modal-title">回填檔案上傳</h2>
+            <p class="modal-desc">請拖拽 .xls 或 .xlsx 檔案至中央區域，或點擊選擇檔案</p>
+            
+            <!-- 拖拽區域 -->
+            <div class="upload-drop-zone" id="dropZone">
+                <span class="upload-icon">📁</span>
+                <p class="upload-text" id="dropZoneText">拖拽 .xls / .xlsx 檔案至此，或點擊選擇檔案</p>
+                <input type="file" id="fileInput" accept=".xls,.xlsx" style="display: none;">
+            </div>
+
+            <!-- 上傳進度條區域 -->
+            <div class="progress-box" id="uploadProgressBox" style="display: none;">
+                <div class="progress-file-info" id="uploadProgressFileName">檔名：-</div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="uploadProgressBarFill"></div>
+                </div>
+                <div class="progress-text" id="uploadProgressText">準備上傳中 (0%)</div>
+            </div>
+
+            <!-- 匯入結果統計與失敗清單區域 -->
+            <div class="result-summary-box" id="uploadResultBox" style="display: none;">
+                <div class="summary-badges" id="uploadSummaryBadges"></div>
+                <div class="fail-detail-area" id="uploadFailDetailArea" style="display: none;">
+                    <div class="fail-detail-title">⚠️ 匯入失敗明細清單：</div>
+                    <table class="fail-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 70px;">Excel 列</th>
+                                <th>失敗原因</th>
+                            </tr>
+                        </thead>
+                        <tbody id="uploadFailTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-btn-group" style="margin-top: 20px;">
+                <button class="btn-modal-cancel" id="cancelUploadBtn">取消</button>
+                <button class="btn-modal-save" id="startUploadBtn">上傳</button>
             </div>
         </div>
     </div>
@@ -154,11 +200,11 @@
                 <input type="text" id="editDeviceName" placeholder="請輸入設備名稱">
             </div>
             <div class="form-group">
-                <label>設備資產編號 (Asset No)</label>
+                <label>序號</label>
                 <input type="text" id="editAssetNo" placeholder="請輸入資產編號">
             </div>
             <div class="form-group">
-                <label>設備序號 (SID)</label>
+                <label>設備編號</label>
                 <input type="text" id="editSid" placeholder="請輸入設備序號">
             </div>
             <div class="modal-btn-group" style="margin-top: 25px;">
@@ -181,20 +227,22 @@
         </div>
     </div>
 
-    <!-- Flatpickr JS 與 繁體中文語系包 -->
+    <!-- Flatpickr JS 與語系包 -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh-tw.js"></script>
 
     <script>
-        const DEVSEL_API_URL = '<?= $g_root_url ?>api/JTG_devselection.php';
-        const DEV_API_URL    = '<?= $g_root_url ?>api/JTG_device.php';
-        const EXPORT_API_URL = '<?= $g_root_url ?>api/export2excel.php';
-        const PROGRESS_API_URL = '<?= $g_root_url ?>api/progress.php';
+        const DEVSEL_API_URL       = '<?= $g_root_url ?>api/JTG_devselection.php';
+        const DEV_API_URL          = '<?= $g_root_url ?>api/JTG_device.php';
+        const EXPORT_API_URL       = '<?= $g_root_url ?>api/export2excel.php';
+        const IMPORT_API_URL       = '<?= $g_root_url ?>api/import2db.php';
+        const PROGRESS_API_URL     = '<?= $g_root_url ?>api/progress.php';
         const DEL_PROGRESS_API_URL = '<?= $g_root_url ?>api/delete_progress.php';
-        const MEMBER_ID      = '<?= htmlspecialchars($member_id); ?>';
-        const SSO_TOKEN      = '<?= htmlspecialchars($sso_token); ?>';
+        
+        const MEMBER_ID            = '<?= htmlspecialchars($member_id); ?>';
+        const SSO_TOKEN            = '<?= htmlspecialchars($sso_token); ?>';
 
-        let currentDeviceList = []; // 快取當前設備資料
+        let currentDeviceList = [];
         let debounceTimer = null;
 
         function escapeHtml(str) {
@@ -207,7 +255,6 @@
             return dateStr.split(' ')[0];
         }
 
-        // 產生日期時間字串 (YYYYMMDD_HHMMSS)
         function getFormattedDateTimeStr() {
             const now = new Date();
             const YYYY = now.getFullYear();
@@ -220,7 +267,7 @@
         }
 
         // =========================================================
-        // 範例檔下載與進度條功能[cite: 1, 3]
+        // 下載範例檔邏輯[cite: 1, 4, 5]
         // =========================================================
         document.getElementById('downloadSampleBtn').addEventListener('click', async function() {
             const btn = this;
@@ -229,10 +276,8 @@
             const progressBarFill = document.getElementById('progressBarFill');
             const progressText = document.getElementById('progressText');
 
-            // 1. 產生檔名：device_list_下載日期時間.xls
             const filename = `device_list_${getFormattedDateTimeStr()}`;
 
-            // UI 初始設定
             btn.disabled = true;
             btn.style.opacity = '0.6';
             progressBox.style.display = 'block';
@@ -240,53 +285,35 @@
             progressBarFill.style.width = '0%';
             progressText.textContent = '準備匯出資料 (0%)';
 
-            let progressInterval = null;
+            let progressInterval = setInterval(async () => {
+                try {
+                    const formData = new FormData();
+                    formData.append('memberid', MEMBER_ID);
+                    formData.append('filename', filename);
+                    formData.append('flag', 'export');
 
-            // 輪詢進度函式
-            const startPollingProgress = () => {
-                progressInterval = setInterval(async () => {
-                    try {
-                        const formData = new FormData();
-                        formData.append('memberid', MEMBER_ID);
-                        formData.append('filename', filename);
-                        formData.append('flag', 'export');
+                    const res = await fetch(PROGRESS_API_URL, { method: 'POST', body: formData });
+                    const data = await res.json();
 
-                        const res = await fetch(PROGRESS_API_URL, {
-                            method: 'POST',
-                            body: formData
-                        });
-                        const data = await res.json();
-
-                        if (data.status === 'true' && data.data) {
-                            const percent = parseInt(data.data.percentage || 0);
-                            progressBarFill.style.width = `${percent}%`;
-                            progressText.textContent = `處理中... (${percent}%)`;
-                        }
-                    } catch (e) {
-                        console.error('查詢進度發生錯誤:', e);
+                    if (data.status === 'true' && data.data) {
+                        const percent = parseInt(data.data.percentage || 0);
+                        progressBarFill.style.width = `${percent}%`;
+                        progressText.textContent = `處理中... (${percent}%)`;
                     }
-                }, 500);
-            };
+                } catch (e) {
+                    console.error('查詢下載進度失敗:', e);
+                }
+            }, 500);
 
             try {
-                // 啟動進度輪詢
-                startPollingProgress();
-
-                // 2. 呼叫匯出 API (export2excel.php)[cite: 1]
                 const formData = new FormData();
                 formData.append('filename', filename);
                 formData.append('memberid', MEMBER_ID);
                 formData.append('caption', '設備清單範例檔');
                 formData.append('table', 'data_device');
 
-                const jsonObject = Object.fromEntries(formData.entries());
-                console.log(jsonObject);
-                const response = await fetch(EXPORT_API_URL, {
-                    method: 'POST',
-                    body: formData
-                });
+                const response = await fetch(EXPORT_API_URL, { method: 'POST', body: formData });
                 const result = await response.json();
-                // console.log(response);
                 clearInterval(progressInterval);
 
                 if (result.status === 'true') {
@@ -298,32 +325,16 @@
                         try {
                             const parsedData = JSON.parse(result.data);
                             downloadUrl = parsedData.download_file_name || '';
-                        } catch(e) {
-                            downloadUrl = '';
-                        }
+                        } catch(e) { downloadUrl = ''; }
                     }
 
-                    // 1. 補全副檔名 (若後端傳回網址未包含 .xlsx)
-                    if (downloadUrl && !downloadUrl.endsWith('.xlsx')) {
-                        downloadUrl += '.xlsx';
-                    }
-
-                    // 2. 處理相對路徑與 HTTP/HTTPS 混合問題
-                    if (!downloadUrl) {
-                        downloadUrl = `excel/export/${filename}.xlsx`;
-                    }
-
-                    // 如果當前頁面是 HTTPS，將下載連結的 http:// 自動替換為 https://
+                    if (!downloadUrl) downloadUrl = `excel/export/${filename}.xlsx`;
                     if (window.location.protocol === 'https:' && downloadUrl.startsWith('http://')) {
                         downloadUrl = downloadUrl.replace('http://', 'https://');
                     }
 
-                    // 3. 透過 Blob 方式下載 (可100%繞過瀏覽器對 HTTP/HTTPS 混合下載的封鎖限制)
                     fetch(downloadUrl)
-                        .then(response => {
-                            if (!response.ok) throw new Error('Network response was not ok');
-                            return response.blob();
-                        })
+                        .then(res => res.blob())
                         .then(blob => {
                             const blobUrl = window.URL.createObjectURL(blob);
                             const a = document.createElement('a');
@@ -334,13 +345,8 @@
                             a.remove();
                             window.URL.revokeObjectURL(blobUrl);
                         })
-                        .catch(err => {
-                            console.error('Blob 下載失敗，改用直接跳轉:', err);
-                            // 備援方案：若 Fetch 被檔，直接用 window.open
-                            window.open(downloadUrl, '_blank');
-                        });
+                        .catch(() => window.open(downloadUrl, '_blank'));
 
-                    // 4. 刪除後端進度紀錄
                     const delFormData = new FormData();
                     delFormData.append('memberid', MEMBER_ID);
                     delFormData.append('filename', `${filename}.xlsx`);
@@ -351,50 +357,245 @@
                     alert('匯出失敗：' + (result.responseMessage || '系統異常'));
                 }
             } catch (err) {
-                console.log('範例檔下載失敗:', err);
-                alert('範例檔下載失敗，請連線後重試！');
+                alert('下載失敗，請檢查網路連線！');
             } finally {
                 clearInterval(progressInterval);
                 btn.disabled = false;
                 btn.style.opacity = '1';
-                setTimeout(() => {
-                    progressBox.style.display = 'none';
-                }, 2000);
+                setTimeout(() => { progressBox.style.display = 'none'; }, 2000);
             }
         });
 
         // =========================================================
-        // 1. 動態載入量測設備選單
+        // 上傳回填檔案邏輯 (含進度條、按鈕禁用灰階、統計與失敗列表)[cite: 3, 4, 5, 6]
+        // =========================================================
+        const uploadModal          = document.getElementById('uploadModal');
+        const openUploadModalBtn   = document.getElementById('openUploadModalBtn');
+        const closeUploadModal    = document.getElementById('closeUploadModal');
+        const cancelUploadBtn     = document.getElementById('cancelUploadBtn');
+        const dropZone            = document.getElementById('dropZone');
+        const fileInput           = document.getElementById('fileInput');
+        const dropZoneText        = document.getElementById('dropZoneText');
+        const startUploadBtn      = document.getElementById('startUploadBtn');
+
+        const uploadProgressBox      = document.getElementById('uploadProgressBox');
+        const uploadProgressFileName = document.getElementById('uploadProgressFileName');
+        const uploadProgressBarFill = document.getElementById('uploadProgressBarFill');
+        const uploadProgressText     = document.getElementById('uploadProgressText');
+
+        const uploadResultBox        = document.getElementById('uploadResultBox');
+        const uploadSummaryBadges    = document.getElementById('uploadSummaryBadges');
+        const uploadFailDetailArea   = document.getElementById('uploadFailDetailArea');
+        const uploadFailTableBody    = document.getElementById('uploadFailTableBody');
+
+        let selectedUploadFile = null;
+
+        openUploadModalBtn.addEventListener('click', () => {
+            document.getElementById('batchModal').style.display = 'none';
+            uploadModal.style.display = 'flex';
+        });
+
+        const hideUploadModal = () => {
+            uploadModal.style.display = 'none';
+            resetUploadState();
+        };
+
+        closeUploadModal.addEventListener('click', hideUploadModal);
+        cancelUploadBtn.addEventListener('click', hideUploadModal);
+
+        function resetUploadState() {
+            selectedUploadFile = null;
+            fileInput.value = '';
+            dropZoneText.textContent = '拖拽 .xls / .xlsx 檔案至此，或點擊選擇檔案';
+            dropZone.classList.remove('dragover');
+            
+            uploadProgressBox.style.display = 'none';
+            uploadProgressBarFill.style.width = '0%';
+            uploadProgressText.textContent = '準備上傳中 (0%)';
+            
+            uploadResultBox.style.display = 'none';
+            uploadSummaryBadges.innerHTML = '';
+            uploadFailDetailArea.style.display = 'none';
+            uploadFailTableBody.innerHTML = '';
+
+            // 恢復按鈕可點擊狀態
+            startUploadBtn.disabled = false;
+            startUploadBtn.classList.remove('btn-disabled');
+            startUploadBtn.textContent = '上傳';
+        }
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleSelectedFile(e.target.files[0]);
+        });
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleSelectedFile(files[0]);
+        });
+
+        function handleSelectedFile(file) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (ext !== 'xls' && ext !== 'xlsx') {
+                alert('請選擇副檔名為 .xls 或 .xlsx 的 Excel 檔案！');
+                return;
+            }
+            selectedUploadFile = file;
+            dropZoneText.textContent = `已選取檔案：${file.name}`;
+        }
+
+        // 按下上傳鈕處理[cite: 3, 4, 5, 6]
+        startUploadBtn.addEventListener('click', async () => {
+            if (!selectedUploadFile) {
+                alert('請先選擇或拖拽檔案！');
+                return;
+            }
+
+            const filename = selectedUploadFile.name;
+
+            // 1. 設定上傳按鈕為不可點擊並套用灰階[cite: 6]
+            startUploadBtn.disabled = true;
+            startUploadBtn.classList.add('btn-disabled');
+
+            // 顯示進度條
+            uploadProgressBox.style.display = 'block';
+            uploadProgressFileName.textContent = `檔名：${filename}`;
+            uploadProgressBarFill.style.width = '0%';
+            uploadProgressText.textContent = '開始分析檔案 (0%)';
+
+            uploadResultBox.style.display = 'none';
+
+            // 2. 開啟進度輪詢器[cite: 4, 6]
+            let progressInterval = setInterval(async () => {
+                try {
+                    const formData = new FormData();
+                    formData.append('memberid', MEMBER_ID);
+                    formData.append('filename', filename);
+                    formData.append('flag', 'import');
+
+                    const res = await fetch(PROGRESS_API_URL, { method: 'POST', body: formData });
+                    const data = await res.json();
+
+                    if (data.status === 'true' && data.data) {
+                        const percent = parseInt(data.data.percentage || 0);
+                        uploadProgressBarFill.style.width = `${percent}%`;
+                        uploadProgressText.textContent = `資料匯入中... (${percent}%)`;
+                    }
+                } catch (e) {
+                    console.error('查詢匯入進度失敗:', e);
+                }
+            }, 500);
+
+            try {
+                // 3. 發送匯入請求給 import2db.php[cite: 3, 6]
+                const formData = new FormData();
+                formData.append('file', selectedUploadFile);
+                formData.append('filename', filename);
+                formData.append('memberid', MEMBER_ID);
+                formData.append('caption', '設備序號清單');
+                formData.append('table', 'data_device');
+                // console.log('file :'+ selectedUploadFile, 'filename :'+ filename, 'memberid :'+ MEMBER_ID, 'caption :'+ '設備序號清單', 'table :'+ 'data_device');
+                // return;
+
+                const response = await fetch(IMPORT_API_URL, { method: 'POST', body: formData });
+                const result = await response.json();
+
+                clearInterval(progressInterval);
+                uploadProgressBarFill.style.width = '100%';
+                uploadProgressText.textContent = '處理完成 (100%)';
+
+                // 4. 解析匯入結果[cite: 3]
+                uploadResultBox.style.display = 'block';
+
+                if (result.status === 'true') {
+                    let resData = {};
+                    try {
+                        resData = typeof result.data === 'string' ? JSON.parse(result.data) : (result.data || {});
+                    } catch(e) { resData = {}; }
+
+                    const insertCnt = resData.insert_cnt || 0;
+                    const updateCnt = resData.update_cnt || 0;
+                    const failCnt   = resData.fail_cnt   || 0;
+                    const failList  = resData.fail_list  || [];
+
+                    // 顯示新增/更新/失敗筆數標籤
+                    uploadSummaryBadges.innerHTML = `
+                        <span class="badge-success">新增成功：${insertCnt} 筆</span>
+                        <span class="badge-update">更新成功：${updateCnt} 筆</span>
+                        <span class="badge-fail">失敗：${failCnt} 筆</span>
+                    `;
+
+                    // 渲染失敗明細列表[cite: 3]
+                    if (failCnt > 0 && failList.length > 0) {
+                        let rowsHtml = '';
+                        failList.forEach(item => {
+                            rowsHtml += `
+                                <tr>
+                                    <td>第 ${escapeHtml(item.row)} 列</td>
+                                    <td style="color: #dc3545;">${escapeHtml(item.reason)}</td>
+                                </tr>
+                            `;
+                        });
+                        uploadFailTableBody.innerHTML = rowsHtml;
+                        uploadFailDetailArea.style.display = 'block';
+                    }
+
+                    // 自動重新刷洗下方設備列表[cite: 6]
+                    fetchDeviceList();
+
+                    // 清除後端進度條紀錄[cite: 5]
+                    const delFormData = new FormData();
+                    delFormData.append('memberid', MEMBER_ID);
+                    delFormData.append('filename', filename);
+                    delFormData.append('flag', 'import');
+                    await fetch(DEL_PROGRESS_API_URL, { method: 'POST', body: delFormData });
+
+                } else {
+                    uploadSummaryBadges.innerHTML = `<span class="badge-fail">匯入失敗：${escapeHtml(result.responseMessage || '系統異常')}</span>`;
+                }
+
+            } catch (err) {
+                clearInterval(progressInterval);
+                console.error('上傳過程發生錯誤:', err);
+                uploadSummaryBadges.innerHTML = `<span class="badge-fail">系統連線異常，匯入中斷！</span>`;
+                uploadResultBox.style.display = 'block';
+            }
+        });
+
+        // =========================================================
+        // 載入與渲染設備列表[cite: 6]
         // =========================================================
         async function loadDeviceOptions() {
             const selectElem = document.getElementById('deviceSelect');
             const editSelectElem = document.getElementById('editDeviceType');
 
             try {
-                const params = new URLSearchParams();
-                params.append('sso_token', SSO_TOKEN);
-                params.append('get_all', '0');
-
-                const response = await fetch(`${DEVSEL_API_URL}?${params.toString()}`, { method: 'GET' });
+                const params = new URLSearchParams({ sso_token: SSO_TOKEN, get_all: '0' });
+                const response = await fetch(`${DEVSEL_API_URL}?${params.toString()}`);
                 const res = await response.json();
 
-                let deviceList = [];
-                if (res.status === 'true' && res.data && Array.isArray(res.data.data)) {
-                    deviceList = res.data.data;
-                } else if (res.status === 'true' && Array.isArray(res.data)) {
-                    deviceList = res.data;
-                }
+                let deviceList = (res.status === 'true' && res.data) ? (res.data.data || res.data) : [];
 
                 let filterOptionsHtml = '<option value="">全部設備</option>';
                 let editOptionsHtml = '<option value="">請選擇設備</option>';
 
-                if (deviceList.length > 0) {
+                if (Array.isArray(deviceList) && deviceList.length > 0) {
                     const options = deviceList.map(dev => `
-                        <option value="${escapeHtml(dev.device_type)}">
-                            ${escapeHtml(dev.device_name)}
-                        </option>
+                        <option value="${escapeHtml(dev.device_type)}">${escapeHtml(dev.device_name)}</option>
                     `).join('');
-
                     filterOptionsHtml += options;
                     editOptionsHtml += options;
                 }
@@ -402,15 +603,11 @@
                 selectElem.innerHTML = filterOptionsHtml;
                 editSelectElem.innerHTML = editOptionsHtml;
             } catch (err) {
-                console.error('載入量測設備選單失敗:', err);
                 selectElem.innerHTML = '<option value="">載入失敗</option>';
                 editSelectElem.innerHTML = '<option value="">載入失敗</option>';
             }
         }
 
-        // =========================================================
-        // 2. 從 JTG_devselection API 撈取設備清單
-        // =========================================================
         async function fetchDeviceList() {
             const tbody = document.getElementById('deviceTableBody');
             tbody.innerHTML = '<tr><td colspan="7" class="no-data">資料載入中...</td></tr>';
@@ -419,42 +616,26 @@
             const searchKeyword = document.getElementById('searchInput').value.trim();
 
             try {
-                const params = new URLSearchParams();
-                params.append('sso_token', SSO_TOKEN);
-                params.append('get_all', '0');
+                const params = new URLSearchParams({ sso_token: SSO_TOKEN, get_all: '0', search_Key: searchKeyword });
+                if (selectedType) params.append('device_type', selectedType);
 
-                if (selectedType) {
-                    params.append('device_type', selectedType);
-                }
-
-                const response = await fetch(`${DEV_API_URL}?${params.toString()}`, { method: 'GET' });
+                const response = await fetch(`${DEV_API_URL}?${params.toString()}`);
                 const res = await response.json();
 
-                if (res.status === 'true' && res.data && Array.isArray(res.data.data)) {
-                    currentDeviceList = res.data.data;
-                } else if (res.status === 'true' && Array.isArray(res.data)) {
-                    currentDeviceList = res.data;
-                } else {
-                    currentDeviceList = [];
-                }
-
+                currentDeviceList = (res.status === 'true' && res.data) ? (res.data.data || res.data) : [];
                 renderTable(searchKeyword);
             } catch (err) {
-                console.error('取得設備資料失敗:', err);
                 tbody.innerHTML = '<tr><td colspan="7" class="no-data">載入失敗，請重試</td></tr>';
             }
         }
 
-        // =========================================================
-        // 3. 渲染資料表格 (含前端關鍵字篩選)
-        // =========================================================
         function renderTable(keyword = '') {
             const tbody = document.getElementById('deviceTableBody');
             const searchLower = keyword.toLowerCase();
 
             let filteredList = currentDeviceList.filter(row => {
                 if (!keyword) return true;
-                const matchText = `${row.device_name || ''} ${row.asset_no || ''} ${row.sid || ''} ${row.device_type || ''}`.toLowerCase();
+                const matchText = `${row.device_name || ''} ${row.tag || ''} ${row.asset_no || ''} ${row.sid || ''} ${row.device_type || ''}`.toLowerCase();
                 return matchText.includes(searchLower);
             });
 
@@ -471,13 +652,12 @@
                             <input type="checkbox" class="row-checkbox" value="${escapeHtml(row.id)}" data-sid="${escapeHtml(row.sid)}">
                         </td>
                         <td>${escapeHtml(row.device_name || row.device_type || '-')}</td>
+                        <td>${escapeHtml(row.tag || '-')}</td>
                         <td>${escapeHtml(row.asset_no || '-')}</td>
-                        <td>${escapeHtml(row.sid || '-')}</td>
                         <td>${escapeHtml(formatDate(row.created_at))}</td>
                         <td>${escapeHtml(formatDate(row.updated_at))}</td>
                         <td>
-                            <button class="btn-edit" 
-                                onclick="openEditModalById(${row.id})">編輯</button>
+                            <button class="btn-edit" onclick="openEditModalById(${row.id})">編輯</button>
                         </td>
                     </tr>
                 `;
@@ -486,9 +666,6 @@
             tbody.innerHTML = html;
         }
 
-        // =========================================================
-        // 4. 開啟並填入編輯 Modal 內容
-        // =========================================================
         function openEditModalById(id) {
             const target = currentDeviceList.find(item => String(item.id) === String(id));
             if (!target) return;
@@ -497,29 +674,26 @@
             document.getElementById('editDeviceType').value = target.device_type || '';
             document.getElementById('editDeviceName').value = target.device_name || '';
             document.getElementById('editAssetNo').value = target.asset_no || '';
-            document.getElementById('editSid').value = target.sid || '';
+            document.getElementById('editSid').value = target.tag || '';
 
             document.getElementById('editModal').style.display = 'flex';
         }
 
-        // =========================================================
-        // 5. 初始化 Flatpickr 日期選擇器
-        // =========================================================
         function initDateRangePicker() {
             flatpickr("#dateRangeInput", {
                 mode: "range",
                 dateFormat: "Y-m-d",
                 locale: "zh_tw",
                 locale: { rangeSeparator: " - " },
-                onChange: function(selectedDates, dateStr, instance) {
-                    if (selectedDates.length === 2) {
-                        fetchDeviceList();
-                    }
+                onChange: function(selectedDates) {
+                    if (selectedDates.length === 2) fetchDeviceList();
                 }
             });
         }
 
-        // 事件監聽與綁定
+        // =========================================================
+        // Modal 事件與控制[cite: 6]
+        // =========================================================
         document.getElementById('selectAll').addEventListener('change', function() {
             document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = this.checked);
         });
@@ -528,17 +702,14 @@
 
         document.getElementById('searchInput').addEventListener('input', function() {
             clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                renderTable(this.value.trim());
-            }, 300);
+            debounceTimer = setTimeout(() => renderTable(this.value.trim()), 300);
         });
 
-        // Modal 動作控制
         const batchModal = document.getElementById('batchModal');
         document.getElementById('openBatchModal').addEventListener('click', () => batchModal.style.display = 'flex');
         document.getElementById('closeBatchModal').addEventListener('click', () => batchModal.style.display = 'none');
 
-        // --- 刪除功能 API 串接 ---
+        // 刪除 Modal 控制[cite: 6]
         const deleteModal = document.getElementById('deleteModal');
         let selectedDeleteIds = [];
 
@@ -557,29 +728,18 @@
         document.getElementById('cancelDeleteBtn').addEventListener('click', () => deleteModal.style.display = 'none');
 
         document.getElementById('confirmDeleteBtn').addEventListener('click', async function() {
-            let successCount = 0;
-            let failCount = 0;
+            let successCount = 0, failCount = 0;
 
             for (const id of selectedDeleteIds) {
                 try {
                     const response = await fetch(DEV_API_URL, {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            sso_token: SSO_TOKEN,
-                            id: parseInt(id),
-                            who_call: 'device_list'
-                        })
+                        body: JSON.stringify({ sso_token: SSO_TOKEN, id: parseInt(id), who_call: 'device_list' })
                     });
                     const res = await response.json();
-                    if (res.status === 'true') {
-                        successCount++;
-                    } else {
-                        failCount++;
-                    }
-                } catch (err) {
-                    failCount++;
-                }
+                    if (res.status === 'true') successCount++; else failCount++;
+                } catch (err) { failCount++; }
             }
 
             alert(`刪除完成！成功：${successCount} 筆，失敗：${failCount} 筆`);
@@ -587,7 +747,7 @@
             fetchDeviceList();
         });
 
-        // --- 編輯功能 API 串接 (PATCH) ---
+        // 編輯 Modal 控制[cite: 6]
         const editModal = document.getElementById('editModal');
         document.getElementById('closeEditModal').addEventListener('click', () => editModal.style.display = 'none');
         document.getElementById('cancelEditBtn').addEventListener('click', () => editModal.style.display = 'none');
@@ -597,7 +757,7 @@
             const deviceType = document.getElementById('editDeviceType').value;
             const deviceName = document.getElementById('editDeviceName').value;
             const assetNo = document.getElementById('editAssetNo').value;
-            const sid = document.getElementById('editSid').value;
+            const tag = document.getElementById('editSid').value;
 
             if (!id) return;
 
@@ -611,7 +771,7 @@
                         device_type: deviceType,
                         device_name: deviceName,
                         asset_no: assetNo,
-                        sid: sid,
+                        tag: tag,
                         who_call: 'device_list'
                     })
                 });
@@ -625,12 +785,11 @@
                     alert('修改失敗：' + (res.message || '未知錯誤'));
                 }
             } catch (err) {
-                console.error('儲存變更失敗:', err);
                 alert('系統連線異常，儲存變更失敗！');
             }
         });
 
-        // 登出 Modal
+        // 登出 Modal[cite: 6]
         const logoutModal = document.getElementById('logoutModal');
         document.getElementById('openLogoutModal').addEventListener('click', () => logoutModal.style.display = 'flex');
         document.getElementById('closeLogoutModal').addEventListener('click', () => logoutModal.style.display = 'none');
@@ -638,12 +797,13 @@
 
         window.addEventListener('click', function(e) {
             if (e.target === batchModal) batchModal.style.display = 'none';
+            if (e.target === uploadModal) hideUploadModal();
             if (e.target === deleteModal) deleteModal.style.display = 'none';
             if (e.target === editModal) editModal.style.display = 'none';
             if (e.target === logoutModal) logoutModal.style.display = 'none';
         });
 
-        // 頁面初始化
+        // 頁面初始化[cite: 6]
         document.addEventListener('DOMContentLoaded', async function() {
             initDateRangePicker();
             await loadDeviceOptions();

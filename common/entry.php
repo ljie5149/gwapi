@@ -686,62 +686,104 @@
 
 		$ret = false;
 		$file_tmp = $file_name;
+
 		if (count($column_info) > 0) {
 			$objPHPExcel = new PHPExcel();
 			$objPHPExcel->getProperties()->setTitle($caption);
 			$objPHPExcel->getProperties()->setCreator($caption);
+
+			$activeSheet = $objPHPExcel->getActiveSheet();
+
+			// 1. 設定整頁預設儲存格格式為「純文字 (@)」
+			$activeSheet->getDefaultStyle()
+						->getNumberFormat()
+						->setFormatCode(PHPExcel_Style_NumberFormat::FORMAT_TEXT);
+
+			$column_widths = [];
 			$col = 0;
+
+			// 2. 設定表頭
 			for ($i = 0; $i < count($column_info); $i++) {
 				$col_info = $column_info[$i];
 				$name   = $col_info[$g_fldidx_comment];
 				$show   = $col_info[$g_fldidx_show];
+
 				if ($show == "true") {
-					$objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow($col++, 1, $name);
-					// $objPHPExcel->getActiveSheet()->getCommentByColumnAndRow($i, 1)->getText()->createTextRun($col_info[1]); // 設定註解
+					$activeSheet->setCellValueExplicitByColumnAndRow($col, 1, (string)$name, PHPExcel_Cell_DataType::TYPE_STRING);
+					$column_widths[$col] = mb_strwidth((string)$name, 'UTF-8');
+					$col++;
 				}
 			}
+
 			$records = 0;
 			if (!is_null($result) && mysqli_num_rows($result) > 0) {
 				$records = mysqli_num_rows($result);
-				// Add the data to the Excel file
 				$row = 2;
+
+				// 3. 寫入資料
 				while ($rows = mysqli_fetch_array($result)) {
 					$col = 0;
 					for ($i = 0; $i < count($column_info); $i++) {
 						$col_info = $column_info[$i];
-						$field 	  = $col_info[$g_fldidx_name];
-						$show 	  = $col_info[$g_fldidx_show];
+						$field    = $col_info[$g_fldidx_name];
+						$show     = $col_info[$g_fldidx_show];
+
 						if ($show == "true") {
 							$val = ($field == "parent_sid" && !is_null($kind_parent)) ? $kind_parent[$rows[$col]] : $rows[$col];
-							$objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow($col, $row, $val);
+							$val_str = is_null($val) ? '' : (string)$val;
+
+							// 強制宣告為字串型態寫入
+							$activeSheet->setCellValueExplicitByColumnAndRow($col, $row, $val_str, PHPExcel_Cell_DataType::TYPE_STRING);
+
+							// 計算欄寬
+							$str_width = mb_strwidth($val_str, 'UTF-8');
+							if (!isset($column_widths[$col]) || $str_width > $column_widths[$col]) {
+								$column_widths[$col] = $str_width;
+							}
+
 							$col++;
 						}
 					}
+
 					$row_pos = $row - 1;
 					$percent = intval($row_pos / $records * 100);
 					if ($percent == 100) $percent = 99;
 					$row++;
+
 					$db->modifyProgress($link, $member_id, $file_tmp, $percent, "export");
-					// echo "<script>document.getElementById('access_progress').value = $percent;</script>";
-					// $data["progress"] = $percent;
-					// flush();
-					// usleep(0.01 * 1000);
 				}
 			}
+
+			// 4. 一次性將「資料區域範圍」強制統一設定為文字格式
+			$maxCol = $activeSheet->getHighestColumn();
+			$maxRow = $activeSheet->getHighestRow();
+			$activeSheet->getStyle("A1:{$maxCol}{$maxRow}")
+						->getNumberFormat()
+						->setFormatCode(PHPExcel_Style_NumberFormat::FORMAT_TEXT);
+
+			// 5. 批次套用欄寬設定
+			foreach ($column_widths as $col_idx => $max_width) {
+				$final_width = max($max_width + 3, 12);
+				$activeSheet->getColumnDimensionByColumn($col_idx)->setWidth($final_width);
+			}
+
+			// 6. 匯出與存檔
 			$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
-			// $file_name = date("YmdHi").$file_tmp.'.xlsx';
-			$file_name = $file_tmp.'.xlsx';
+			$file_name = $file_tmp . '.xlsx';
 			$j = 1;
-			while (file_exists($g_xlsx_out_path.$file_name)) {
-				// $file_name = date("YmdHi").$file_tmp.'_'.$j.'.xlsx';
-				$file_name = $file_tmp.'_'.$j.'.xlsx';
+
+			while (file_exists($g_xlsx_out_path . $file_name)) {
+				$file_name = $file_tmp . '_' . $j . '.xlsx';
 				$j++;
 			}
-			$objWriter->save($g_xlsx_out_path.$file_name);
+
+			$objWriter->save($g_xlsx_out_path . $file_name);
+
 			$percent = 100;
 			$db->modifyProgress($link, $member_id, $file_tmp, $percent, "export");
 			$ret = true;
 		}
+
 		return $ret;
 	}
 	function getPdctKind($table, $remote_ip, $member_id, $swap = false) {

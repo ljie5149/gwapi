@@ -128,6 +128,7 @@
                     $asset_no     = isset($src_data['asset_no']    ) ? trim($src_data['asset_no']) : '';
                     $device_type  = isset($src_data['device_type'] ) ? trim($src_data['device_type']) : '';
                     $device_name  = isset($src_data['device_name'] ) ? trim($src_data['device_name']) : '';
+                    $search_key  = isset($src_data['search_key'] ) ? trim($src_data['search_key']) : '';
 
                     $where_clauses = ["1=1"];
                     $params = [];
@@ -165,6 +166,13 @@
                         $where_clauses[] = "device_name LIKE ?";
                         $params[] = "%" . $device_name . "%";
                         $types .= "s";
+                    }
+                    if (!empty($search_key)) {
+                        $where_clauses[] = "(device_name LIKE ? || asset_no LIKE ? || tag LIKE ?)";
+                        $params[] = "%" . $search_key . "%";
+                        $params[] = "%" . $search_key . "%";
+                        $params[] = "%" . $search_key . "%";
+                        $types .= "sss";
                     }
 
                     $sql = "SELECT id, sid, pc_mac, asset_no, device_type, device_name, receive_mode, tag, 
