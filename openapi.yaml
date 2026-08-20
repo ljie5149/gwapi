@@ -1,12 +1,20 @@
 openapi: 3.0.3
 info:
-  title: JTG Health Check & Device Management API Specification
+  title: JTG 醫療健檢與系統管理 API 介面規範
+  description: |
+    JTG 系統 API OpenAPI 3.0 規範說明。
+    
+    ### 🔑 金鑰換取與身份驗證流程
+    1. 換取 Token: 呼叫 POST /JTG_exhanceToken.php，帶入 api_key
+       * 預設 Key: PRJFy9bRrZZbO2CtpMJN6IcOffu5ODscEp8sknwEoRsIr2kPFOu5ru96ovaJFW2d
+    2. 使用 Token: 後續 API 於 Header 帶入 Authorization: Bearer <sso_token> 或於 Body/Query 帶 sso_token
   version: 1.0.0
-  description: OpenAPI Specification based on provided PHP source files for JTG system APIs (Device, Default Device, ExhanceToken, Facility, and HostConfig).
-
 servers:
-  - url: https://api.example.com/v1
-    description: Production Server
+  - url: https://clinic.healthme.com.tw/gwapi/api
+    description: 正式環境
+
+security:
+  - BearerAuth: []
 
 components:
   securitySchemes:

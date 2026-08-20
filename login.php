@@ -19,7 +19,7 @@
         }
 
         body {
-            background-color: #ffffff;
+            background-color: #f5f5f5;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -31,37 +31,39 @@
             flex-direction: column;
             align-items: center;
             width: 100%;
-            max-width: 720px;
-            padding: 24px;
+            max-width: 420px; /* 原 720px -> 縮小至標準寬度 */
+            padding: 20px;
         }
 
         .logo-box {
             text-align: center;
-            margin-bottom: 24px;
+            margin-bottom: 16px;
         }
 
         .logo-box img {
-            max-width: 504px;
+            max-width: 280px; /* 原 504px -> 縮小 Logo */
             width: 100%;
             height: auto;
         }
 
         .system-title {
-            font-size: 46px;
+            font-size: 24px; /* 原 46px -> 調整為適中標題 */
             font-weight: bold;
             color: #000000;
-            margin-bottom: 42px;
-            letter-spacing: 2.5px;
+            margin-bottom: 24px;
+            letter-spacing: 1px;
+            text-align: center;
         }
 
         .card {
-            background-color: #ebebeb;
-            border-radius: 42px;
-            padding: 60px 54px 54px;
+            background-color: #ffffff;
+            border-radius: 16px; /* 原 42px -> 圓角收斂 */
+            padding: 32px 28px; /* 原 60px 54px -> 縮減留白 */
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 30px;
+            gap: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* 增加微陰影更具層次感 */
         }
 
         .input-group {
@@ -71,42 +73,42 @@
         }
 
         .input-group label {
-            font-size: 31px;
+            font-size: 16px; /* 原 31px */
             font-weight: bold;
             color: #2b79a2;
-            width: 110px;
+            width: 60px; /* 原 110px */
             text-align: left;
         }
 
         .input-group input {
             flex: 1;
-            height: 62px;
-            border: 2px solid #c8c8c8;
-            border-radius: 12px;
-            padding: 0 20px;
-            font-size: 26px;
+            height: 44px; /* 原 62px -> 縮減高度 */
+            border: 1px solid #c8c8c8;
+            border-radius: 8px;
+            padding: 0 14px;
+            font-size: 16px; /* 原 26px */
             outline: none;
             background-color: #ffffff;
         }
 
         .input-group input:focus {
             border-color: #2b79a2;
-            box-shadow: 0 0 8px rgba(43, 121, 162, 0.3);
+            box-shadow: 0 0 6px rgba(43, 121, 162, 0.3);
         }
 
         .submit-btn {
             background-color: #fca934;
             color: #ffffff;
             border: none;
-            border-radius: 14px;
-            padding: 17px 0;
-            font-size: 34px;
+            border-radius: 8px;
+            padding: 12px 0; /* 原 17px */
+            font-size: 18px; /* 原 34px */
             font-weight: bold;
             cursor: pointer;
-            margin-top: 18px;
-            width: 55%;
+            margin-top: 10px;
+            width: 100%; /* 原 55% -> 改為滿寬更容易點擊 */
             align-self: center;
-            letter-spacing: 5px;
+            letter-spacing: 2px;
             transition: background-color 0.2s ease;
         }
 
@@ -117,7 +119,7 @@
         .error-msg {
             color: #d9534f;
             text-align: center;
-            font-size: 24px;
+            font-size: 14px; /* 原 24px */
             font-weight: bold;
             display: none;
         }
@@ -131,7 +133,7 @@
             <img src="./images/logo.png" alt="敏盛綜合醫院 Min-Sheng General Hospital">
         </div>
 
-        <div class="system-title">量測後台管理系統<span style="font-size:24px; color:gray;"><?= $g_online_zhtw ?></span></div>
+        <div class="system-title">量測後台管理系統 <span style="font-size:16px; color:gray;"><?= $g_online_zhtw ?></span></div>
 
         <!-- 登入表單 -->
         <div class="card">
@@ -139,12 +141,12 @@
             <div id="errorMsg" class="error-msg"></div>
 
             <form id="loginForm">
-                <div class="input-group" style="margin-bottom: 30px;">
+                <div class="input-group" style="margin-bottom: 20px;">
                     <label for="username">帳號</label>
                     <input type="text" id="username" name="username" required autocomplete="off">
                 </div>
 
-                <div class="input-group" style="margin-bottom: 30px;">
+                <div class="input-group" style="margin-bottom: 20px;">
                     <label for="password">密碼</label>
                     <input type="password" id="password" name="password" required>
                 </div>
@@ -176,8 +178,6 @@
 
             try {
 				var api_url = '<?= $g_root_url ?>' + 'middleware/api4login.php';
-				// console.log(api_url);
-                // 指向獨立處理 Token 驗證與登入邏輯的 API
                 const response = await fetch(api_url, {
                     method: 'POST',
                     headers: {
@@ -190,15 +190,9 @@
                 });
 
                 const result = await response.json();
-				// console.log(result);
 
                 var show_all = '<?php echo $showAll ?>';
-                // console.log(show_all);
-                // return;
                 if (result.status === 'true') {
-                    // 登入成功，依據角色進行分流轉址
-                    // console.log(result.role);
-                    // return;
                     if (result.role === 'superuser') {
                         if (show_all == "0") {
                             window.location.href = 'org_management.php';
@@ -209,12 +203,10 @@
                         window.location.href = 'dashboard.php';
                     }
                 } else {
-                    // 登入失敗，顯示錯誤提示訊息
                     errorMsgBox.textContent = result.message || '帳號或密碼錯誤！';
                     errorMsgBox.style.display = 'block';
                 }
             } catch (error) {
-                // API 連線或系統異常處理
                 errorMsgBox.textContent = '無法連線至伺服器，請稍後再試！';
                 errorMsgBox.style.display = 'block';
             }

@@ -104,9 +104,9 @@
                         <tr><td colspan="5" class="no-data">資料載入中...</td></tr>
                     </tbody>
                 </table>
-                <div class="info-text">
+                <!-- <div class="info-text">
                     檔案與資料庫命名：原始資料 (Raw data) 命名格式為 日期 + 流水號 + 型號 + 序號
-                </div>
+                </div> -->
             </div>
 
             <!-- 2. 共通格式表格 -->
