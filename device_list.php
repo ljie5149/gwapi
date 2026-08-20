@@ -1,10 +1,17 @@
 <?php
     include_once('common/entry.php');
     global $g_root_url, $g_is_online, $g_online_zhtw, $g_backend_title, $g_supperuser_all;
-    $username  = $_SESSION['accname'] ?? "";
-    $userrole  = $_SESSION['user_role'] ?? "";
-    $member_id = $_SESSION['member_id'] ?? $_SESSION['accname'] ?? "admin";
-    $sso_token = $_SESSION['sso_token'] ?? "";
+
+    // 改用 $_COOKIE 讀取登入資訊
+    $username  = isset($_COOKIE['acc_name']) ? rawurldecode($_COOKIE['acc_name']) : "";
+    $userrole  = $_COOKIE['user_role'] ?? "";
+    $acc_id    = $_COOKIE['acc_id'] ?? "";
+    $member_id = $_COOKIE['acc_id'] ?? $acc_id ?? ($acc_id ?: "web");
+
+    // 取得 SSO Token (優先使用 Cookie，若無則呼叫 getGoldenKey())
+    $sso_token = $_COOKIE['sso_token'] ?? (function_exists('getGoldenKey') ? getGoldenKey() : "");
+    // echo "username :${username}, userrole :${userrole}, acc_id :${member_id}, acc_id :${member_id}";
+    // exit;
 
     uiLocationPage();
     $cloud_url = "online_cloud.php";
@@ -24,7 +31,7 @@
     <title>設備序號清單 - <?= $g_backend_title; ?></title>
     
     <!-- Flatpickr 日期選擇器套件 CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="./css/flatpickr.min.css">
     <link href="./css/device_list.css" rel="stylesheet">
 </head>
 <body>
@@ -196,10 +203,6 @@
                 </select>
             </div>
             <div class="form-group">
-                <label>設備名稱</label>
-                <input type="text" id="editDeviceName" placeholder="請輸入設備名稱">
-            </div>
-            <div class="form-group">
                 <label>序號</label>
                 <input type="text" id="editAssetNo" placeholder="請輸入資產編號">
             </div>
@@ -228,8 +231,8 @@
     </div>
 
     <!-- Flatpickr JS 與語系包 -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh-tw.js"></script>
+    <script src="./js/flatpickr.js"></script>
+    <script src="./js/flatpickr.zh-tw.js"></script>
 
     <script>
         const DEVSEL_API_URL       = '<?= $g_root_url ?>api/JTG_devselection.php';
@@ -267,7 +270,7 @@
         }
 
         // =========================================================
-        // 下載範例檔邏輯[cite: 1, 4, 5]
+        // 下載範例檔邏輯
         // =========================================================
         document.getElementById('downloadSampleBtn').addEventListener('click', async function() {
             const btn = this;
@@ -367,7 +370,7 @@
         });
 
         // =========================================================
-        // 上傳回填檔案邏輯 (含進度條、按鈕禁用灰階、統計與失敗列表)[cite: 3, 4, 5, 6]
+        // 上傳回填檔案邏輯
         // =========================================================
         const uploadModal          = document.getElementById('uploadModal');
         const openUploadModalBtn   = document.getElementById('openUploadModalBtn');
@@ -418,7 +421,6 @@
             uploadFailDetailArea.style.display = 'none';
             uploadFailTableBody.innerHTML = '';
 
-            // 恢復按鈕可點擊狀態
             startUploadBtn.disabled = false;
             startUploadBtn.classList.remove('btn-disabled');
             startUploadBtn.textContent = '上傳';
@@ -457,7 +459,6 @@
             dropZoneText.textContent = `已選取檔案：${file.name}`;
         }
 
-        // 按下上傳鈕處理[cite: 3, 4, 5, 6]
         startUploadBtn.addEventListener('click', async () => {
             if (!selectedUploadFile) {
                 alert('請先選擇或拖拽檔案！');
@@ -466,11 +467,9 @@
 
             const filename = selectedUploadFile.name;
 
-            // 1. 設定上傳按鈕為不可點擊並套用灰階[cite: 6]
             startUploadBtn.disabled = true;
             startUploadBtn.classList.add('btn-disabled');
 
-            // 顯示進度條
             uploadProgressBox.style.display = 'block';
             uploadProgressFileName.textContent = `檔名：${filename}`;
             uploadProgressBarFill.style.width = '0%';
@@ -478,7 +477,6 @@
 
             uploadResultBox.style.display = 'none';
 
-            // 2. 開啟進度輪詢器[cite: 4, 6]
             let progressInterval = setInterval(async () => {
                 try {
                     const formData = new FormData();
@@ -500,15 +498,12 @@
             }, 500);
 
             try {
-                // 3. 發送匯入請求給 import2db.php[cite: 3, 6]
                 const formData = new FormData();
                 formData.append('file', selectedUploadFile);
                 formData.append('filename', filename);
                 formData.append('memberid', MEMBER_ID);
                 formData.append('caption', '設備序號清單');
                 formData.append('table', 'data_device');
-                // console.log('file :'+ selectedUploadFile, 'filename :'+ filename, 'memberid :'+ MEMBER_ID, 'caption :'+ '設備序號清單', 'table :'+ 'data_device');
-                // return;
 
                 const response = await fetch(IMPORT_API_URL, { method: 'POST', body: formData });
                 const result = await response.json();
@@ -517,7 +512,6 @@
                 uploadProgressBarFill.style.width = '100%';
                 uploadProgressText.textContent = '處理完成 (100%)';
 
-                // 4. 解析匯入結果[cite: 3]
                 uploadResultBox.style.display = 'block';
 
                 if (result.status === 'true') {
@@ -531,14 +525,12 @@
                     const failCnt   = resData.fail_cnt   || 0;
                     const failList  = resData.fail_list  || [];
 
-                    // 顯示新增/更新/失敗筆數標籤
                     uploadSummaryBadges.innerHTML = `
                         <span class="badge-success">新增成功：${insertCnt} 筆</span>
                         <span class="badge-update">更新成功：${updateCnt} 筆</span>
                         <span class="badge-fail">失敗：${failCnt} 筆</span>
                     `;
 
-                    // 渲染失敗明細列表[cite: 3]
                     if (failCnt > 0 && failList.length > 0) {
                         let rowsHtml = '';
                         failList.forEach(item => {
@@ -553,10 +545,8 @@
                         uploadFailDetailArea.style.display = 'block';
                     }
 
-                    // 自動重新刷洗下方設備列表[cite: 6]
                     fetchDeviceList();
 
-                    // 清除後端進度條紀錄[cite: 5]
                     const delFormData = new FormData();
                     delFormData.append('memberid', MEMBER_ID);
                     delFormData.append('filename', filename);
@@ -576,7 +566,7 @@
         });
 
         // =========================================================
-        // 載入與渲染設備列表[cite: 6]
+        // 載入與渲染設備列表
         // =========================================================
         async function loadDeviceOptions() {
             const selectElem = document.getElementById('deviceSelect');
@@ -670,9 +660,14 @@
             const target = currentDeviceList.find(item => String(item.id) === String(id));
             if (!target) return;
 
+            const editSelect = document.getElementById('editDeviceType');
+
             document.getElementById('editTargetId').value = target.id;
-            document.getElementById('editDeviceType').value = target.device_type || '';
-            document.getElementById('editDeviceName').value = target.device_name || '';
+            editSelect.value = target.device_type || '';
+            
+            // 將量測設備選單設為禁用
+            editSelect.disabled = true;
+
             document.getElementById('editAssetNo').value = target.asset_no || '';
             document.getElementById('editSid').value = target.tag || '';
 
@@ -692,7 +687,7 @@
         }
 
         // =========================================================
-        // Modal 事件與控制[cite: 6]
+        // Modal 事件與控制
         // =========================================================
         document.getElementById('selectAll').addEventListener('change', function() {
             document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = this.checked);
@@ -709,7 +704,7 @@
         document.getElementById('openBatchModal').addEventListener('click', () => batchModal.style.display = 'flex');
         document.getElementById('closeBatchModal').addEventListener('click', () => batchModal.style.display = 'none');
 
-        // 刪除 Modal 控制[cite: 6]
+        // 刪除 Modal 控制
         const deleteModal = document.getElementById('deleteModal');
         let selectedDeleteIds = [];
 
@@ -747,7 +742,7 @@
             fetchDeviceList();
         });
 
-        // 編輯 Modal 控制[cite: 6]
+        // 編輯 Modal 控制
         const editModal = document.getElementById('editModal');
         document.getElementById('closeEditModal').addEventListener('click', () => editModal.style.display = 'none');
         document.getElementById('cancelEditBtn').addEventListener('click', () => editModal.style.display = 'none');
@@ -755,7 +750,6 @@
         document.getElementById('saveEditBtn').addEventListener('click', async function() {
             const id = document.getElementById('editTargetId').value;
             const deviceType = document.getElementById('editDeviceType').value;
-            const deviceName = document.getElementById('editDeviceName').value;
             const assetNo = document.getElementById('editAssetNo').value;
             const tag = document.getElementById('editSid').value;
 
@@ -769,7 +763,6 @@
                         sso_token: SSO_TOKEN,
                         id: parseInt(id),
                         device_type: deviceType,
-                        device_name: deviceName,
                         asset_no: assetNo,
                         tag: tag,
                         who_call: 'device_list'
@@ -789,7 +782,7 @@
             }
         });
 
-        // 登出 Modal[cite: 6]
+        // 登出 Modal
         const logoutModal = document.getElementById('logoutModal');
         document.getElementById('openLogoutModal').addEventListener('click', () => logoutModal.style.display = 'flex');
         document.getElementById('closeLogoutModal').addEventListener('click', () => logoutModal.style.display = 'none');
@@ -803,7 +796,7 @@
             if (e.target === logoutModal) logoutModal.style.display = 'none';
         });
 
-        // 頁面初始化[cite: 6]
+        // 頁面初始化
         document.addEventListener('DOMContentLoaded', async function() {
             initDateRangePicker();
             await loadDeviceOptions();

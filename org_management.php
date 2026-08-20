@@ -2,9 +2,15 @@
     include_once('common/entry.php');
     global $g_root_url, $g_is_online, $g_online_zhtw, $g_backend_title, $g_supperuser_all;
 
-    $username = $_SESSION['accname'] ?? "";
-    $userrole = $_SESSION['user_role'] ?? "";
-    $sso_token = $_SESSION['sso_token'] ?? "";
+    // 改用 $_COOKIE 讀取登入資訊
+    $username  = isset($_COOKIE['acc_name']) ? rawurldecode($_COOKIE['acc_name']) : "";
+    $userrole  = $_COOKIE['user_role'] ?? "";
+    $acc_id    = $_COOKIE['acc_id'] ?? "";
+    $member_id = $_COOKIE['member_id'] ?? $acc_id ?? ($username ?: "admin");
+
+    // 取得 SSO Token (優先使用 Cookie，若無則呼叫 getGoldenKey())
+    $sso_token = $_COOKIE['sso_token'] ?? (function_exists('getGoldenKey') ? getGoldenKey() : "");
+    // echo "username :${username}, userrole :${userrole}, acc_id :${member_id}, member_id :${member_id}";
 
     uiLocationPage(true);
     $cloud_url = "online_cloud.php";
@@ -215,6 +221,7 @@
 
                     const response = await fetch(`${FACILITY_API_URL}?${params.toString()}`, { method: 'GET' });
                     const res = await response.json();
+                    // console.log('載入機構選項:', response);
 
                     if (res.status === 'true' && res.data && Array.isArray(res.data.data)) {
                         facilityListCache = res.data.data;
@@ -263,6 +270,7 @@
             try {
                 const response = await fetch(`${API_URL}?${params.toString()}`, { method: 'GET' });
                 const res = await response.json();
+                // console.log('載入資料:', response);
 
                 if (res.status === 'true' && Array.isArray(res.data)) {
                     allDataList = res.data;

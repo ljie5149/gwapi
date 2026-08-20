@@ -190,10 +190,10 @@
                 });
 
                 const result = await response.json();
-				console.log(result);
+				// console.log(result);
 
                 var show_all = '<?php echo $showAll ?>';
-                console.log(show_all);
+                // console.log(show_all);
                 // return;
                 if (result.status === 'true') {
                     // 登入成功，依據角色進行分流轉址

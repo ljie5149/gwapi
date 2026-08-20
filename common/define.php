@@ -8,18 +8,18 @@
 	$g_backend_title 	= "量測後台管理系統";
 	$g_supperuser_all 	= false;
 	
-	$g_is_remote = false;
+	$g_is_remote = true;
 
 	$g_google_map_api_key = 'AIzaSyD_1YB9j-QJE91x2_73S7RA3jtOGIBoMKU';
 	
 	// 資料庫
 	// -----------------------------------------------------------------------------------------------------------------
-	$g_db_ip		= '127.0.0.1'; // 當地 mysql ip，不用改
+	$g_db_ip		= ($g_is_remote) ? '172.31.38.189' : '127.0.0.1'; // 當地 mysql ip，不用改
 	$g_db_user		= "root";
 	$g_db_pwd		= ($g_is_remote) ? "JTG@1qaz@WSX" : "";
 
 	$g_db_name		= "gwapi";
-	$g_proj_url 	= ($g_is_remote) ? 'http://3.37.144.108/' : 'http://localhost/醫療/國健/';
+	$g_proj_url 	= ($g_is_remote) ? 'https://clinic.healthme.com.tw/' : 'http://localhost/醫療/國健/';
 	// $g_db_name		= "cdil_b2b_test"; // cdil_b2b_test
 	// $g_proj_url 	= 'http://202.5.253.133/'; // 'http://202.5.253.133/'
 	$g_proj_name 	= $g_db_name;

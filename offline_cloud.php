@@ -1,8 +1,16 @@
 <?php
     include_once('common/entry.php');
     global $g_is_online, $g_online_zhtw, $g_backend_title, $g_supperuser_all;
-    $username = $_SESSION['accname'] ?? "";
-    $userrole = $_SESSION['user_role'] ?? "";
+
+    // 改用 $_COOKIE 讀取登入資訊
+    $username  = isset($_COOKIE['acc_name']) ? rawurldecode($_COOKIE['acc_name']) : "";
+    $userrole  = $_COOKIE['user_role'] ?? "";
+    $acc_id    = $_COOKIE['acc_id'] ?? "";
+    $member_id = $_COOKIE['acc_id'] ?? $acc_id ?? ($acc_id ?: "web");
+
+    // 取得 SSO Token (優先使用 Cookie，若無則呼叫 getGoldenKey())
+    $sso_token = $_COOKIE['sso_token'] ?? (function_exists('getGoldenKey') ? getGoldenKey() : "");
+    
     uiLocationPage();
     $cloud_url = ($g_is_online) ? "online_cloud.php" : "offline_cloud.php";
     $cloud_url = "online_cloud.php";

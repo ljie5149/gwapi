@@ -41,7 +41,6 @@
 	include("api_core.php");
     include("accessdb.php");
     include("author_define.php");
-    include("fcmnotify.php");
     include("mailCore.php");
 	
 	function getGoldenKey($forceRefresh = false)
@@ -54,12 +53,8 @@
 			if (!empty($cached_token)) {
 				return $cached_token;
 			}
-			
-			if (session_status() === PHP_SESSION_NONE) {
-				session_start();
-			}
 
-			$session_token = trim(($_SESSION['sso_token'] ?? ''));
+			$session_token = trim(($_COOKIE['sso_token'] ?? ''));
 			if (!empty($session_token)) {
 				$cached_token = $session_token;
 				return $session_token;
@@ -67,7 +62,7 @@
 		}
 
 		// 2. 準備 API 請求參數
-		$token_url = rtrim($g_root_url, '/') . "/api/JTG_exhanceToken.php";
+		$token_url = rtrim($g_root_url, '/') . "/api/JTG_exhancetoken.php";
 		$token_payload = json_encode([
 			"api_key"  => $g_k,
 			"who_call" => "web_login"
@@ -104,7 +99,7 @@
 		$_SESSION['sso_token'] = $sso_token;
 		$cached_token = $sso_token;
 
-		// return $sso_token;
+		return $sso_token;
 	}
 
 	// 帳密變成token
@@ -586,21 +581,40 @@
 		// handle curl error
 		return ($obj["status"] == "error") ? 0 : 1; //die();
 	}
-	function uiLocationPage($skip_org_management = false, $onlyChk4LogoutPage=false)
+	function uiLocationPage($skip_org_management = false, $onlyChk4LogoutPage = false)
 	{
-    	global $g_supperuser_all;
-		if (!$onlyChk4LogoutPage && (is_null($_SESSION['user_role']) || strlen($_SESSION['user_role']) == 0)) header("Location: ./");
-		if ($_SESSION['accname'] ==  "") {
-			header("Location: logout.php");
+		$ret = "NONE";
+		global $g_supperuser_all;
+
+		// 從 Cookie 讀取角色與帳號名稱 (加上 rawurldecode 處理中文)
+		$userrole = $_COOKIE['user_role'] ?? '';
+		$accname  = isset($_COOKIE['acc_name']) ? trim(rawurldecode($_COOKIE['acc_name'])) : '';
+
+    	// echo "userrole :${userrole}, accname :${accname}";
+		// exit;
+		// 1. 若非登出頁檢查且權限角色為空，導回首頁
+		if (!$onlyChk4LogoutPage && empty($userrole)) {
+			$ret = "step1";
+			header("Location: ./");
+			exit;
 		}
-		if (!$skip_org_management) {
-			if ($g_supperuser_all == false) {
-				$userrole = $_SESSION['user_role'] ?? "";
-				if ($userrole == "superuser") {
-					header("Location: ./org_management.php");
-				}
+
+		// 2. 若帳號名稱為空，觸發登出流程
+		if ($accname === '') {
+			$ret = "若帳號名稱為空，觸發登出流程";
+			header("Location: logout.php");
+			exit;
+		}
+
+		// 3. 特殊機構管理頁面轉向邏輯
+		if (!$skip_org_management && !$g_supperuser_all) {
+			if ($userrole === 'superuser') {
+				$ret = "特殊機構管理頁面轉向邏輯";
+				header("Location: ./org_management.php");
+				exit;
 			}
 		}
+		return $ret;
 	}
 	function getFullMenuString($idx, $subidx)
 	{

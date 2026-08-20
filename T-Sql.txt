@@ -199,7 +199,7 @@ CREATE TABLE data_api_config (
 
     sid             VARCHAR(50)                 NOT NULL                    COMMENT 'API設定資料唯一識別碼SID',
 
-    pc_id           INT             UNSIGNED    NOT NULL                    COMMENT '對應data_pc的PC資料流水',
+    pc_id           INT             UNSIGNED        NULL                    COMMENT '對應data_pc的PC資料流水',
 
     connect_type    VARCHAR(100)                NOT NULL                    COMMENT '線上或離線',
 
@@ -227,7 +227,7 @@ CREATE TABLE data_api_config (
 CREATE TABLE log_api_config (
     id              BIGINT          UNSIGNED    NOT NULL    AUTO_INCREMENT  COMMENT 'API設定LOG流水號',
 
-    pc_id           INT             UNSIGNED    NOT NULL                    COMMENT '對應data_pc的PC資料流水號',
+    pc_id           INT             UNSIGNED        NULL                    COMMENT '對應data_pc的PC資料流水號',
 
     config_id       INT             UNSIGNED    DEFAULT         NULL        COMMENT '對應data_api_config流水號',
 
@@ -661,3 +661,8 @@ CREATE TABLE log_pc (
     KEY idx_created_at (created_at)
 
 ) COMMENT='PC設備資料異動LOG表';
+
+
+
+  "account": "superuser",
+  "password": "healthygwapi",

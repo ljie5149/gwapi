@@ -48,7 +48,7 @@
     }
 
     $db = new CXDB($remote_ip);
-    $link = null;
+    $link = null; $userid = "system";
     try {
         $conn_res = $db->connect($link, "", "");
 
