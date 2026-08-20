@@ -1,10 +1,11 @@
 <?php
     include_once('common/entry.php');
-    global $g_is_online, $g_online_zhtw, $g_backend_title, $g_supperuser_all;
+    global $g_root_url, $g_is_online, $g_online_zhtw, $g_backend_title, $g_supperuser_all;
     $username = $_SESSION['accname'] ?? "";
+    $member_id = $username;
     $userrole = $_SESSION['user_role'] ?? "";
+    $sso_token = $_SESSION['sso_token'] ?? ""; // 用於 API 驗證的 Token
     uiLocationPage();
-    $cloud_url = ($g_is_online) ? "online_cloud.php" : "offline_cloud.php";
     $cloud_url = "online_cloud.php";
     $org_str = "";
     if ($userrole == "superuser") {
@@ -29,7 +30,7 @@
         }
 
         body {
-            background-color: #e3e3e3;
+            background-color: #ffffff;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -83,177 +84,215 @@
 
         .logout-btn:hover { background-color: #55697a; }
 
-        /* 主區域 */
-        .main-container {
+        .page-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #000000;
             padding: 20px 40px;
-            flex: 1;
         }
 
-        .page-title {
-            font-size: 28px;
+        /* 主設定區塊 (灰色背景區) */
+        .config-card {
+            background-color: #ececec;
+            padding: 25px 40px 30px 40px;
+        }
+
+        .section-subtitle {
+            color: #2b79a2;
+            font-size: 20px;
             font-weight: bold;
-            color: #1a1a1a;
+            margin-bottom: 20px;
+        }
+
+        .form-row {
+            display: flex;
+            align-items: center;
             margin-bottom: 25px;
         }
 
-        /* 第一區塊：主機與同步控制 */
-        .control-row {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-            font-size: 22px;
+        .form-label {
+            width: 220px;
+            font-size: 28px;
             font-weight: bold;
-            color: #1a1a1a;
+            color: #000000;
         }
 
-        .control-label {
-            width: 140px;
+        .form-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #000000;
+            word-break: break-all;
         }
 
-        .select-container select {
+        .select-wrapper {
+            position: relative;
+            width: 320px;
+        }
+
+        .select-wrapper select {
+            width: 100%;
+            height: 48px;
             background-color: #ffffff;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            padding: 6px 40px 6px 15px;
-            font-size: 20px;
+            border: 1px solid #b0b0b0;
+            border-radius: 8px;
+            padding: 0 40px 0 15px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #000000;
             outline: none;
             appearance: none;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='gray'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 10px center;
-            background-size: 20px;
-            min-width: 250px;
-        }
-
-        .info-blue {
-            color: #2d70b3;
-            margin-left: 25px;
-            font-size: 20px;
-            font-weight: normal;
-        }
-
-        .btn-sync {
-            background-color: #fca934;
-            color: #ffffff;
-            border: none;
-            border-radius: 10px;
-            padding: 8px 45px;
-            font-size: 20px;
-            font-weight: bold;
+            -webkit-appearance: none;
             cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .btn-add-gw {
-            background-color: #724921;
-            color: #ffffff;
-            border: none;
-            border-radius: 8px;
-            padding: 8px 35px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-left: auto;
-        }
-
-        .btn-add-hms {
-            background-color: #1b3866;
-            color: #ffffff;
-            border: none;
-            border-radius: 8px;
-            padding: 8px 35px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-left: auto;
-        }
-
-        /* 資料表格卡片 */
-        .table-card {
-            background-color: #ffffff;
-            border-radius: 4px;
-            border: 1px solid #d0d0d0;
-            min-height: 180px;
-            margin-bottom: 15px;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
             text-align: center;
         }
 
-        .data-table th {
-            background-color: #cde4f7;
-            padding: 12px;
-            font-size: 18px;
-            font-weight: bold;
-            color: #2b79a2;
-            width: 16.66%;
+        .select-wrapper::after {
+            content: "";
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 10px solid #a0a0a0;
+            pointer-events: none;
         }
 
-        .data-table td {
-            padding: 14px;
-            font-size: 18px;
-            color: #1a1a1a;
-            border-bottom: 1px solid #eaeaea;
-            vertical-align: middle;
-        }
-
-        .data-table input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-
-        .status-online {
-            color: #43a047;
-            font-weight: bold;
-        }
-
-        /* 圖示按鈕 (編輯 / 刪除) */
-        .icon-btn {
-            background: none;
+        .btn-edit {
+            background-color: #0d4b73;
+            color: #ffffff;
             border: none;
-            cursor: pointer;
-            font-size: 20px;
-            color: #333333;
-            transition: color 0.2s;
-        }
-
-        .icon-btn:hover { color: #2b79a2; }
-
-        /* 刷新連線狀態按鈕 */
-        .btn-refresh {
-            background-color: #e8e8e8;
-            color: #2b79a2;
-            border: 1px solid #c0c0c0;
             border-radius: 8px;
-            padding: 8px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-            margin-bottom: 35px;
-        }
-
-        .btn-refresh:hover { background-color: #dcdcdc; }
-
-        /* HMS 主機連線標題列 */
-        .hms-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .hms-title {
+            padding: 8px 0;
+            width: 330px;
             font-size: 24px;
             font-weight: bold;
-            color: #1a1a1a;
+            cursor: pointer;
+            margin-left: auto;
+            text-align: center;
+            letter-spacing: 2px;
         }
 
-        /* Modal 對話方塊通用樣式 */
+        .btn-edit:hover {
+            background-color: #0a3a5a;
+        }
+
+        /* 狀態與同步區塊 (白色背景區) */
+        .status-card {
+            background-color: #ffffff;
+            padding: 30px 40px;
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .status-label {
+            width: 300px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #000000;
+        }
+
+        /* 連線狀態 UI 樣式 */
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .status-checkbox {
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        /* 綠色已連線（勾選） */
+        .status-badge.online {
+            color: #2e7d32;
+        }
+        .status-badge.online .status-checkbox {
+            background-color: #2e7d32;
+            color: #ffffff;
+        }
+
+        /* 灰色離線（取消勾選） */
+        .status-badge.offline {
+            color: #888888;
+        }
+        .status-badge.offline .status-checkbox {
+            border: 2px solid #888888;
+            background-color: #ffffff;
+            color: transparent;
+        }
+
+        /* 橘色檢測中 */
+        .status-badge.checking {
+            color: #f57c00;
+        }
+        .status-badge.checking .status-checkbox {
+            border: 2px dashed #f57c00;
+            background-color: #ffffff;
+            color: #f57c00;
+        }
+
+        .btn-check-status {
+            background-color: #ffffff;
+            color: #2b79a2;
+            border: 1px solid #b0b0b0;
+            border-radius: 8px;
+            padding: 8px 0;
+            width: 330px;
+            font-size: 22px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: auto;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .btn-check-status:hover {
+            background-color: #f8f8f8;
+        }
+
+        .sync-time-text {
+            font-size: 28px;
+            font-weight: bold;
+            color: #555555;
+        }
+
+        .btn-sync {
+            background-color: #ff851b;
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 0;
+            width: 330px;
+            font-size: 26px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: auto;
+            text-align: center;
+            letter-spacing: 2px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn-sync:hover {
+            background-color: #e07010;
+        }
+
+        /* Modal 通用樣式 */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -293,7 +332,6 @@
             font-weight: bold;
             cursor: pointer;
             user-select: none;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
 
         .modal-title {
@@ -315,7 +353,6 @@
             gap: 25px;
         }
 
-        /* 表單類型 Modal 樣式 */
         .modal-form-group {
             text-align: left;
             margin-bottom: 20px;
@@ -329,8 +366,7 @@
             color: #333;
         }
 
-        .modal-form-group input,
-        .modal-form-group select {
+        .modal-form-group input {
             width: 100%;
             height: 42px;
             padding: 0 12px;
@@ -349,11 +385,10 @@
             font-size: 22px;
             font-weight: bold;
             cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
         }
 
         .btn-modal-submit {
-            background-color: #124b6e;
+            background-color: #0d4b73;
             color: #ffffff;
             border: none;
             padding: 12px 35px;
@@ -361,7 +396,6 @@
             font-size: 22px;
             font-weight: bold;
             cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
         }
 
         .btn-modal-danger {
@@ -375,7 +409,6 @@
             cursor: pointer;
             text-decoration: none;
             display: inline-block;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
         }
     </style>
 </head>
@@ -383,7 +416,7 @@
 
     <!-- 頂部導航列 -->
     <header class="navbar">
-        <nav class="nav-links"><span><?= $g_online_zhtw ?></span>
+        <nav class="nav-links">
             <a href="dashboard.php">資料管理</a>
             <span class="separator">|</span>
             <a href="device_list.php">設備序號清單</a>
@@ -392,100 +425,102 @@
             <?= $org_str; ?>
         </nav>
         <div class="user-info">
-            <span>登入者：<?php echo htmlspecialchars($username); ?></span>
+            <span>登入者：<?php echo htmlspecialchars($username ?: 'admin111'); ?></span>
             <button type="button" id="openLogoutModal" class="logout-btn">登出</button>
         </div>
     </header>
 
-    <main class="main-container">
+    <main>
         <h1 class="page-title">離線/雲端管理</h1>
 
-        <!-- 主機設置區塊 -->
-        <div class="control-row">
-            <span class="control-label">主機設置：</span>
-            <div class="select-container">
-                <select id="hostTypeSelect">
-                    <option value="雲端主機" selected>雲端主機</option>
-                    <option value="離線主機">離線主機</option>
-                </select>
-            </div>
-            <span class="info-blue">主機IP：123.456.789.1</span>
-        </div>
-
-        <!-- 離線模式專屬：資料同步與 GW 清單 -->
-        <div id="offlineSection" style="display: none;">
-            <div class="control-row">
-                <span class="control-label">資料同步：</span>
-                <button class="btn-sync">同步資料</button>
-                <span class="info-blue">2026/8/10 19:00, 123.123.123.1, 同步成功</span>
-                <button class="btn-add-gw" id="openGwModal">新增GW</button>
+        <!-- 伺服器與連線設定區塊 (灰色背景) -->
+        <section class="config-card">
+            <div class="section-subtitle">伺服器與連線設定</div>
+            
+            <div class="form-row">
+                <span class="form-label">主機模式</span>
+                <div class="select-wrapper">
+                    <select id="hostModeSelect">
+                        <option value="OFF-LINE" selected>離線主機</option>
+                        <option value="ON-LINE">雲端主機</option>
+                    </select>
+                </div>
             </div>
 
-            <div class="table-card">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>選擇</th>
-                            <th>狀態</th>
-                            <th>IP</th>
-                            <th>連線方式</th>
-                            <th>編輯</th>
-                            <th>刪除</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><input type="checkbox" class="row-checkbox"></td>
-                            <td class="status-online">連線</td>
-                            <td>123.123.123.1</td>
-                            <td>雲端主機</td>
-                            <td><button class="icon-btn btn-edit" title="編輯">📝</button></td>
-                            <td><button class="icon-btn btn-delete" title="刪除">🗑️</button></td>
-                        </tr>
-                    </tbody>
-                </table>
+            <!-- 主機 Domain -->
+            <div class="form-row">
+                <span class="form-label">主機 Domain</span>
+                <span class="form-value" id="val_domain">載入中...</span>
+                <button class="btn-edit" onclick="openEditModal('domain')">編輯</button>
             </div>
 
-            <button class="btn-refresh">刷新連線狀態</button>
-        </div>
+            <!-- 雲端主機連線 (離線模式專屬) -->
+            <div class="form-row offline-only">
+                <span class="form-label">雲端主機連線</span>
+                <span class="form-value" id="val_cloud">載入中...</span>
+                <button class="btn-edit" onclick="openEditModal('cloud')">編輯</button>
+            </div>
 
-        <!-- HMS主機連線區塊 -->
-        <div class="hms-header">
-            <span class="hms-title">HMS主機連線：</span>
-            <button class="btn-add-hms" id="openHmsModal">新增主機</button>
-        </div>
+            <!-- HMS主機連線 -->
+            <div class="form-row" style="margin-bottom: 0;">
+                <span class="form-label">HMS主機連線</span>
+                <span class="form-value" id="val_hms">載入中...</span>
+                <button class="btn-edit" onclick="openEditModal('hms')" id="btn_edit_hms">編輯</button>
+            </div>
+        </section>
 
-        <!-- HMS主機清單 -->
-        <div class="table-card">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>選擇</th>
-                        <th>狀態</th>
-                        <th>IP</th>
-                        <th>連線方式</th>
-                        <th>編輯</th>
-                        <th>刪除</th>
-                    </tr>
-                </thead>
-                <tbody id="hmsTableBody">
-                    <tr>
-                        <td><input type="checkbox" class="row-checkbox"></td>
-                        <td class="status-online">連線</td>
-                        <td>123.123.123.1</td>
-                        <td>雲端主機</td>
-                        <td><button class="icon-btn btn-edit" title="編輯">📝</button></td>
-                        <td><button class="icon-btn btn-delete" title="刪除">🗑️</button></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+        <!-- 狀態與同步區塊 (白色背景) -->
+        <section class="status-card">
+            <div class="section-subtitle">狀態與同步</div>
 
-        <button class="btn-refresh">刷新連線狀態</button>
+            <!-- 雲端主機連線狀態 (離線模式專屬) -->
+            <div class="status-row offline-only">
+                <span class="status-label">雲端主機連線狀態</span>
+                <div class="status-badge offline" id="status_cloud_badge">
+                    <span class="status-checkbox" id="status_cloud_icon"></span>
+                    <span id="status_cloud_text">已連線</span>
+                </div>
+                <button class="btn-check-status" onclick="checkSingleStatus('cloud')">檢查連線狀態</button>
+            </div>
+
+            <div class="status-row">
+                <span class="status-label">HMS主機連線狀態</span>
+                <div class="status-badge offline" id="status_hms_badge">
+                    <span class="status-checkbox" id="status_hms_icon"></span>
+                    <span id="status_hms_text">已連線</span>
+                </div>
+                <button class="btn-check-status" onclick="checkSingleStatus('hms')">檢查連線狀態</button>
+            </div>
+
+            <!-- 資料同步與同步按鈕 (離線模式專屬) -->
+            <div class="status-row offline-only" style="margin-bottom: 0;">
+                <span class="status-label">資料同步</span>
+                <span class="sync-time-text">上次同步時間：2026-08-19</span>
+                <button class="btn-sync">同步</button>
+            </div>
+        </section>
     </main>
 
-    <!-- Modal 區塊 -->
-    <!-- 1. 登出確認 Modal -->
+    <!-- 編輯 Modal -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal-container">
+            <div class="modal-close" onclick="closeModal('editModal')">X</div>
+            <h2 class="modal-title" id="editModalTitle">編輯網址</h2>
+            <form id="editForm">
+                <input type="hidden" id="editTargetSid">
+                <div class="modal-form-group">
+                    <label id="editModalLabel">連線網址 (URL)</label>
+                    <input type="text" id="editConfigValue" placeholder="https://..." required>
+                </div>
+                <div class="modal-btn-group" style="margin-top: 30px;">
+                    <button type="button" class="btn-modal-cancel" onclick="closeModal('editModal')">取消</button>
+                    <button type="submit" class="btn-modal-submit">儲存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 登出 Modal -->
     <div class="modal-overlay" id="logoutModal">
         <div class="modal-container">
             <div class="modal-close" onclick="closeModal('logoutModal')">X</div>
@@ -498,51 +533,221 @@
         </div>
     </div>
 
-    <!-- 2. 新增/編輯 GW/HMS 主機 Modal -->
-    <div class="modal-overlay" id="hostModal">
-        <div class="modal-container">
-            <div class="modal-close" onclick="closeModal('hostModal')">X</div>
-            <h2 class="modal-title" id="hostModalTitle">新增主機</h2>
-            <form id="hostForm">
-                <div class="modal-form-group">
-                    <label>IP 位址</label>
-                    <input type="text" id="hostIp" placeholder="請輸入 IP (例如: 192.168.1.1)" required>
-                </div>
-                <div class="modal-form-group">
-                    <label>連線方式</label>
-                    <select id="hostType">
-                        <option value="雲端主機">雲端主機</option>
-                        <option value="離線主機">離線主機</option>
-                        <option value="外檢主機">外檢主機</option>
-                    </select>
-                </div>
-                <div class="modal-btn-group" style="margin-top: 30px;">
-                    <button type="button" class="btn-modal-cancel" onclick="closeModal('hostModal')">取消</button>
-                    <button type="submit" class="btn-modal-submit">儲存</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- 3. 刪除確認 Modal -->
-    <div class="modal-overlay" id="deleteModal">
-        <div class="modal-container">
-            <div class="modal-close" onclick="closeModal('deleteModal')">X</div>
-            <h2 class="modal-title">刪除確認</h2>
-            <p class="modal-desc">確定要刪除此筆連線設定嗎？</p>
-            <div class="modal-btn-group">
-                <button class="btn-modal-cancel" onclick="closeModal('deleteModal')">取消</button>
-                <button class="btn-modal-danger" id="confirmDeleteBtn">確定刪除</button>
-            </div>
-        </div>
-    </div>
-
     <script>
-        const hostTypeSelect = document.getElementById('hostTypeSelect');
-        const offlineSection = document.getElementById('offlineSection');
-        const hmsTableBody = document.getElementById('hmsTableBody');
+        const CFG_API_URL = '<?= $g_root_url ?>api/JTG_hostconfig.php';
+        const MEMBER_ID            = '<?= htmlspecialchars($member_id); ?>';
+        const SSO_TOKEN            = '<?= htmlspecialchars($sso_token); ?>';
+        
+        const hostModeSelect = document.getElementById('hostModeSelect');
+        const offlineElements = document.querySelectorAll('.offline-only');
 
-        // Modal 控制通用函式
+        // 快取 API 回傳的設定資料
+        let hostConfigData = [];
+
+        // 1. 從 API 載入資料
+        async function fetchHostConfig() {
+            try {
+                const params = new URLSearchParams({ sso_token: SSO_TOKEN, get_all: '0' });
+                
+                const response = await fetch(`${CFG_API_URL}?${params.toString()}`);
+                const result = await response.json();
+                if (result.status === "true" && result.data && result.data.data) {
+                    hostConfigData = result.data.data;
+                    renderConfigValues();
+                } else {
+                    console.error("無法取得設定資料：", result.responseMessage);
+                }
+            } catch (error) {
+                console.error("API 請求失敗：", error);
+            }
+        }
+
+        // 2. 根據目前選擇的模式渲染網址內容，並觸發連線檢測
+        function renderConfigValues() {
+            const currentMode = hostModeSelect.value; // 'OFF-LINE' 或 'ON-LINE'
+            
+            // 更新 UI 隱藏/顯示離線專屬欄位
+            const isOffline = (currentMode === 'OFF-LINE');
+            offlineElements.forEach(el => {
+                el.style.display = isOffline ? 'flex' : 'none';
+            });
+
+            if (isOffline) {
+                // 離線模式
+                const domainItem = hostConfigData.find(item => item.sid === 'OFF_DOMAIN_URL');
+                const cloudItem  = hostConfigData.find(item => item.sid === 'OFF_Cloud_URL');
+                const hmsItem    = hostConfigData.find(item => item.sid === 'OFF_HMS_URL');
+
+                document.getElementById('val_domain').innerText = domainItem ? domainItem.config_value : '-';
+                document.getElementById('val_cloud').innerText  = cloudItem ? cloudItem.config_value : '-';
+                document.getElementById('val_hms').innerText    = hmsItem ? hmsItem.config_value : '-';
+                document.getElementById('btn_edit_hms').style.display = 'inline-block';
+            } else {
+                // 雲端模式
+                const domainItem = hostConfigData.find(item => item.sid === 'DOMAIN_URL');
+                const cloudItem  = hostConfigData.find(item => item.sid === 'Cloud_URL');
+
+                document.getElementById('val_domain').innerText = domainItem ? domainItem.config_value : '-';
+                document.getElementById('val_hms').innerText    = cloudItem ? cloudItem.config_value : '-';
+                document.getElementById('btn_edit_hms').style.display = 'inline-block';
+            }
+
+            // 選單切換後自動觸發連線測試
+            checkAllConnectionStatus();
+        }
+
+        // 3. 通用網路連線測試 Ping/Fetch 函數
+        async function pingUrl(url, timeout = 3000) {
+            if (!url || url === '-' || url.trim() === '') return false;
+
+            let targetUrl = url.trim();
+            if (!/^https?:\/\//i.test(targetUrl)) {
+                targetUrl = 'https://' + targetUrl;
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+            try {
+                await fetch(targetUrl, {
+                    method: 'GET',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                return true;
+            } catch (err) {
+                clearTimeout(timeoutId);
+                return false;
+            }
+        }
+
+        // 4. 更新 UI 狀態顯示 (控制綠色連線/灰色離線)
+        function updateStatusUI(type, isConnected, isChecking = false) {
+            const badge = document.getElementById(`status_${type}_badge`);
+            const icon = document.getElementById(`status_${type}_icon`);
+            const text = document.getElementById(`status_${type}_text`);
+
+            if (!badge || !icon || !text) return;
+
+            if (isChecking) {
+                badge.className = 'status-badge checking';
+                icon.innerText = '⋯';
+                text.innerText = '已連線';
+            } else if (isConnected) {
+                // 連線成功：綠色 + 勾選
+                badge.className = 'status-badge online';
+                icon.innerText = '✓';
+                text.innerText = '已連線';
+            } else {
+                // 連線失敗/離線：灰色 + 取消勾選 (無勾號)
+                badge.className = 'status-badge offline';
+                icon.innerText = '';
+                text.innerText = '已連線';
+            }
+        }
+
+        // 5. 檢測所有適用連線狀態
+        async function checkAllConnectionStatus() {
+            const currentMode = hostModeSelect.value;
+            
+            if (currentMode === 'OFF-LINE') {
+                const cloudItem = hostConfigData.find(item => item.sid === 'OFF_Cloud_URL');
+                const hmsItem   = hostConfigData.find(item => item.sid === 'OFF_HMS_URL');
+
+                checkSingleStatusByUrl('cloud', cloudItem ? cloudItem.config_value : '');
+                checkSingleStatusByUrl('hms', hmsItem ? hmsItem.config_value : '');
+            } else {
+                // 雲端模式
+                const hmsItem = hostConfigData.find(item => item.sid === 'Cloud_URL');
+                checkSingleStatusByUrl('hms', hmsItem ? hmsItem.config_value : '');
+            }
+        }
+
+        // 根據指定的類型與 URL 進行連線測試
+        async function checkSingleStatusByUrl(type, url) {
+            updateStatusUI(type, false, true); // 顯示檢測中
+            const isOnline = await pingUrl(url);
+            updateStatusUI(type, isOnline, false);
+        }
+
+        // 個別按鈕點擊檢測函數
+        function checkSingleStatus(type) {
+            const currentMode = hostModeSelect.value;
+            let targetSid = '';
+
+            if (type === 'cloud') {
+                targetSid = 'OFF_Cloud_URL';
+            } else if (type === 'hms') {
+                targetSid = (currentMode === 'OFF-LINE') ? 'OFF_HMS_URL' : 'Cloud_URL';
+            }
+
+            const item = hostConfigData.find(i => i.sid === targetSid);
+            checkSingleStatusByUrl(type, item ? item.config_value : '');
+        }
+
+        // 6. 開啟編輯彈窗
+        function openEditModal(type) {
+            const currentMode = hostModeSelect.value;
+            let targetSid = '';
+            let title = '';
+
+            if (type === 'domain') {
+                targetSid = (currentMode === 'OFF-LINE') ? 'OFF_DOMAIN_URL' : 'DOMAIN_URL';
+                title = '編輯 主機 Domain';
+            } else if (type === 'cloud') {
+                targetSid = 'OFF_Cloud_URL';
+                title = '編輯 雲端主機連線';
+            } else if (type === 'hms') {
+                targetSid = (currentMode === 'OFF-LINE') ? 'OFF_HMS_URL' : 'Cloud_URL';
+                title = (currentMode === 'OFF-LINE') ? '編輯 HMS主機連線' : '編輯 HMS主機連線';
+            }
+
+            const currentItem = hostConfigData.find(item => item.sid === targetSid);
+            
+            document.getElementById('editModalTitle').innerText = title;
+            document.getElementById('editTargetSid').value = targetSid;
+            document.getElementById('editConfigValue').value = currentItem ? currentItem.config_value : '';
+            openModal('editModal');
+        }
+
+        // 7. 儲存編輯資料 (送出 PATCH 請求至 API)
+        document.getElementById('editForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const sid = document.getElementById('editTargetSid').value;
+            const newValue = document.getElementById('editConfigValue').value.trim();
+
+            try {
+                const response = await fetch(CFG_API_URL, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${SSO_TOKEN}`
+                    },
+                    body: JSON.stringify({
+                        sid: sid,
+                        config_value: newValue
+                    })
+                });
+
+                const result = await response.json();
+                if (result.status === "true") {
+                    closeModal('editModal');
+                    fetchHostConfig(); // 重新整理資料並重新自動檢測
+                } else {
+                    alert('更新失敗：' + result.responseMessage);
+                }
+            } catch (error) {
+                console.error('更新 API 錯誤：', error);
+                alert('系統連線異常，更新失敗');
+            }
+        });
+
+        // 下拉選單切換監聽 (自動觸發更新與檢測)
+        hostModeSelect.addEventListener('change', renderConfigValues);
+
+        // Modal 控制函式
         function openModal(id) {
             document.getElementById(id).style.display = 'flex';
         }
@@ -551,88 +756,18 @@
             document.getElementById(id).style.display = 'none';
         }
 
-        // 監聽主機類型選單切換
-        hostTypeSelect.addEventListener('change', function() {
-            if (this.value === '雲端主機') {
-                offlineSection.style.display = 'none';
-                hmsTableBody.innerHTML = `
-                    <tr>
-                        <td><input type="checkbox" class="row-checkbox"></td>
-                        <td class="status-online">連線</td>
-                        <td>123.123.123.1</td>
-                        <td>雲端主機</td>
-                        <td><button class="icon-btn btn-edit" title="編輯">📝</button></td>
-                        <td><button class="icon-btn btn-delete" title="刪除">🗑️</button></td>
-                    </tr>
-                `;
-            } else {
-                offlineSection.style.display = 'block';
-                hmsTableBody.innerHTML = `
-                    <tr>
-                        <td><input type="checkbox" class="row-checkbox"></td>
-                        <td class="status-online">連線</td>
-                        <td>123.123.123.1</td>
-                        <td>雲端主機</td>
-                        <td><button class="icon-btn btn-edit" title="編輯">📝</button></td>
-                        <td><button class="icon-btn btn-delete" title="刪除">🗑️</button></td>
-                    </tr>
-                    <tr>
-                        <td><input type="checkbox" class="row-checkbox"></td>
-                        <td class="status-online">連線</td>
-                        <td>123.123.123.1</td>
-                        <td>外檢主機</td>
-                        <td><button class="icon-btn btn-edit" title="編輯">📝</button></td>
-                        <td><button class="icon-btn btn-delete" title="刪除">🗑️</button></td>
-                    </tr>
-                `;
-            }
-        });
-
-        // 開啟登出 Modal
         document.getElementById('openLogoutModal').addEventListener('click', function() {
             openModal('logoutModal');
         });
 
-        // 開啟新增 GW Modal
-        document.getElementById('openGwModal').addEventListener('click', function() {
-            document.getElementById('hostModalTitle').innerText = '新增 GW';
-            document.getElementById('hostIp').value = '';
-            openModal('hostModal');
-        });
-
-        // 開啟新增 HMS Modal
-        document.getElementById('openHmsModal').addEventListener('click', function() {
-            document.getElementById('hostModalTitle').innerText = '新增 HMS 主機';
-            document.getElementById('hostIp').value = '';
-            openModal('hostModal');
-        });
-
-        // 全域委派事件：編輯與刪除按鈕觸發 Modal（支援動態渲染的 HTML）
-        document.addEventListener('click', function(e) {
-            const editBtn = e.target.closest('.btn-edit');
-            if (editBtn) {
-                const tr = editBtn.closest('tr');
-                const ip = tr.cells[2].innerText;
-                const type = tr.cells[3].innerText;
-
-                document.getElementById('hostModalTitle').innerText = '編輯主機設定';
-                document.getElementById('hostIp').value = ip;
-                document.getElementById('hostType').value = type;
-                openModal('hostModal');
-            }
-
-            const deleteBtn = e.target.closest('.btn-delete');
-            if (deleteBtn) {
-                openModal('deleteModal');
-            }
-        });
-
-        // 點擊背景空白處通用關閉 Modal
         window.addEventListener('click', function(e) {
             if (e.target.classList.contains('modal-overlay')) {
                 e.target.style.display = 'none';
             }
         });
+
+        // 頁面初始化
+        fetchHostConfig();
     </script>
 </body>
 </html>

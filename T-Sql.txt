@@ -199,7 +199,9 @@ CREATE TABLE data_api_config (
 
     sid             VARCHAR(50)                 NOT NULL                    COMMENT 'API設定資料唯一識別碼SID',
 
-    pc_id           INT             UNSIGNED    NOT NULL                    COMMENT '對應data_pc的PC資料流水號',
+    pc_id           INT             UNSIGNED    NOT NULL                    COMMENT '對應data_pc的PC資料流水',
+
+    connect_type    VARCHAR(100)                NOT NULL                    COMMENT '線上或離線',
 
     config_key      VARCHAR(100)                NOT NULL                    COMMENT 'API設定鍵值名稱',
 
@@ -227,7 +229,7 @@ CREATE TABLE log_api_config (
 
     pc_id           INT             UNSIGNED    NOT NULL                    COMMENT '對應data_pc的PC資料流水號',
 
-    config_id       INT             UNSIGNED    DEFAULT         NULL                    COMMENT '對應data_api_config流水號',
+    config_id       INT             UNSIGNED    DEFAULT         NULL        COMMENT '對應data_api_config流水號',
 
     sid             VARCHAR(50)     DEFAULT         NULL                    COMMENT 'API設定資料唯一識別碼SID',
 
@@ -458,6 +460,7 @@ INSERT INTO data_user (
 );
 INSERT INTO data_api_config (
     sid,
+    connect_type,
     config_key,
     config_value,
     description,
@@ -466,18 +469,47 @@ INSERT INTO data_api_config (
 )
 VALUES
 (
-    'API_HOST',
-    'Host',
+    'OFF_DOMAIN_URL',
+    'OFF-LINE',
+    'OFF_Domain',
     'https://clinic.healthme.com.tw',
-    'API主機位置',
+    '主機Domain',
     1,
     NOW()
 ),
 (
-    'API_SHAREHOPE_URL',
-    'ShareHopeApiUrl',
+    'OFF_Cloud_URL',
+    'OFF-LINE',
+    'OFF_Cloud',
     'https://neoexam-prod.neov.ai/api/api',
-    'ShareHope API服務網址',
+    '雲端主機連線',
+    1,
+    NOW()
+),
+(
+    'OFF_HMS_URL',
+    'OFF-LINE',
+    'OFF_HMS',
+    'https://neoexam-prod.neov.ai/api/api',
+    'HMS主機連線',
+    1,
+    NOW()
+),
+(
+    'DOMAIN_URL',
+    'ON-LINE',
+    'Domain',
+    'https://clinic.healthme.com.tw',
+    '主機Domain',
+    1,
+    NOW()
+),
+(
+    'Cloud_URL',
+    'ON-LINE',
+    'Cloud',
+    'https://neoexam-prod.neov.ai/api/api',
+    '雲端主機連線',
     1,
     NOW()
 );

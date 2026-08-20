@@ -155,10 +155,10 @@
                         $types .= "s";
                     }
 
-                    $sql = "SELECT id, sid, pc_id, config_key, config_value, description, status, created_at, updated_at 
+                    $sql = "SELECT id, sid, pc_id, connect_type, config_key, config_value, description, status, created_at, updated_at 
                             FROM $tableMain 
                             WHERE " . implode(" AND ", $where_clauses) . " 
-                            ORDER BY id DESC";
+                            ORDER BY id ASC";
 
                     $stmt = mysqli_prepare($link, $sql);
                     if ($stmt) {
