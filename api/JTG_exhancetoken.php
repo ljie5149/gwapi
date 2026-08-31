@@ -73,7 +73,7 @@
                         // 帳號密碼驗證正確：產生 SSO Token
                         // ----------------------------------------------------
                         $sso_token = generateSSOtoken($userid, $userpwd);
-
+                        $sso_token['type'] = 'Bearer';
                         $data = result_message("true", "0x0200", "Token 取得成功", $sso_token);
                         $msg_detail = get_error_symbol($data["code"]) . " result :" . $data["code"] . " " . $data["responseMessage"];
 

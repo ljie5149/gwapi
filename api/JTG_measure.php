@@ -53,6 +53,7 @@
     $null_array = array();
     $caption    = "健檢量測資料";
 
+    // 限制允許使用的資料表名稱，防止表名拼接導向 SQL 注入風險
     $tableMain = 'data_measure';
     $tableLog  = 'log_measure';
     
@@ -99,8 +100,14 @@
      * 寫入 log_measure 紀錄表
      */
     function writeMeasureLog($link, $tableLog, $facilityId, $measureId, $sid, $measureNo, $deviceNo, $machineModel, $actionType, $changeData, $actionUser, $actionIp, $actionNote) {
-        $log_sql = "INSERT INTO $tableLog 
-                    (facility_id, measure_id, sid, measure_no, device_no, machine_model, action_type, change_data, action_user, action_ip, action_note, created_at) 
+        // 白名單驗證表名，避免非預期拼接 SQL 注入
+        $allowed_tables = ['log_measure'];
+        if (!in_array($tableLog, $allowed_tables, true)) {
+            return false;
+        }
+
+        $log_sql = "INSERT INTO `$tableLog` 
+                    (facility_id, measure_id, sid, measure_no, asset_no, machine_model, action_type, change_data, action_user, action_ip, action_note, created_at) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
         $stmt = mysqli_prepare($link, $log_sql);
         if ($stmt) {
@@ -125,14 +132,14 @@
                 // 1. 查詢量測資料 (GET)
                 // ==========================================
                 case "get":
-                    $id            = isset($src_data['id']           ) ? intval($src_data['id']) : 0;
+                    $id            = isset($src_data['id']           ) && is_numeric($src_data['id']) ? intval($src_data['id']) : 0;
                     $sid           = isset($src_data['sid']          ) ? trim($src_data['sid'])  : '';
-                    $facility_id   = isset($src_data['facility_id']  ) ? intval($src_data['facility_id']) : 0;
+                    $facility_id   = isset($src_data['facility_id']  ) && is_numeric($src_data['facility_id']) ? intval($src_data['facility_id']) : 0;
                     $measure_no    = isset($src_data['measure_no']   ) ? trim($src_data['measure_no']) : '';
-                    $device_no     = isset($src_data['device_no']    ) ? trim($src_data['device_no'])  : '';
+                    $asset_no     = isset($src_data['asset_no']    ) ? trim($src_data['asset_no'])  : '';
                     $machine_model = isset($src_data['machine_model']) ? trim($src_data['machine_model']) : '';
                     $online_type   = isset($src_data['online_type']  ) ? trim($src_data['online_type'])  : '';
-                    $is_uploaded   = isset($src_data['is_uploaded']  ) && $src_data['is_uploaded'] !== '' ? intval($src_data['is_uploaded']) : null;
+                    $is_uploaded   = isset($src_data['is_uploaded']  ) && is_numeric($src_data['is_uploaded']) ? intval($src_data['is_uploaded']) : null;
                     $start_date    = isset($src_data['start_date']   ) ? trim($src_data['start_date']) : '';
                     $end_date      = isset($src_data['end_date']     ) ? trim($src_data['end_date'])   : '';
 
@@ -160,9 +167,9 @@
                         $params[] = $measure_no;
                         $types .= "s";
                     }
-                    if (!empty($device_no)) {
-                        $where_clauses[] = "device_no = ?";
-                        $params[] = $device_no;
+                    if (!empty($asset_no)) {
+                        $where_clauses[] = "asset_no = ?";
+                        $params[] = $asset_no;
                         $types .= "s";
                     }
                     if (!empty($machine_model)) {
@@ -191,11 +198,12 @@
                         $types .= "s";
                     }
 
-                    // 增加 up_json_data 查詢回傳
-                    $sql = "SELECT id, sid, facility_id, measure_no, device_no, machine_model, 
+                    // 回傳欄位含檢測人員相關欄位與檔案資料
+                    $sql = "SELECT id, sid, facility_id, measure_no, asset_no, machine_model, asset_no, 
                                    online_type, is_uploaded, json_data, raw_data, file_name, mime_type, file_size, 
+                                   tester_identifier, tester_work_id, tester_name, editor, measure_count, 
                                    measure_date, up_json_data, remark, created_at, updated_at 
-                            FROM $tableMain 
+                            FROM `$tableMain` 
                             WHERE " . implode(" AND ", $where_clauses) . " 
                             ORDER BY id DESC";
 
@@ -212,10 +220,9 @@
                             while ($row = mysqli_fetch_assoc($result)) {
                                 array_push($query_rows_tmp, $row);
                             }
-                            $query_rows["data"] = $query_rows_tmp;
-                            $data = result_message("true", "0x0200", "取得 $caption 成功", $query_rows);
+                            $data = result_message("true", "0x0200", "取得 $caption 成功", $query_rows_tmp);
                         } else {
-                            $data = result_message("false", "0x0204", "查無 $caption 資料", $null_array);
+                            $data = result_message("true", "0x0204", "查無 $caption 資料", $null_array);
                         }
                         mysqli_stmt_close($stmt);
                     } else {
@@ -232,18 +239,24 @@
                     $has_error = false;
 
                     foreach ($items as $item) {
-                        $who_call      = isset($item['who_call']     ) ? $item['who_call']      : 'app';
-                        $sid           = isset($item['sid']          ) ? trim($item['sid'])     : '';
+                        $who_call           = isset($item['who_call'            ]) ? $item['who_call'               ]      : 'app';
+                        $sid                = isset($item['sid'                 ]) ? trim($item['sid'               ])     : '';
+
+                        $tester_identifier  = isset($item['tester_identifier'   ]) ? trim($item['tester_identifier' ])     : '';
+                        $tester_work_id     = isset($item['tester_work_id'      ]) ? trim($item['tester_work_id'    ])     : '';
+                        $tester_name        = isset($item['tester_name'         ]) ? trim($item['tester_name'       ])     : '';
+                        $editor             = isset($item['editor'              ]) ? trim($item['editor'            ])     : '';
+
                         $facility_id   = isset($item['facility_id']   ) ? intval($item['facility_id']) : 0;
                         $measure_no    = isset($item['measure_no']    ) ? trim($item['measure_no'])  : '';
-                        $device_no     = isset($item['device_no']     ) ? trim($item['device_no'])   : '';
+                        $asset_no     = isset($item['asset_no']     ) ? trim($item['asset_no'])   : '';
                         $machine_model = isset($item['machine_model'] ) ? trim($item['machine_model']) : '';
                         $online_type   = isset($item['online_type']  ) ? trim($item['online_type'])  : 'ON-LINE';
                         $is_uploaded   = isset($item['is_uploaded']  ) ? intval($item['is_uploaded']) : 0;
-                        $json_data     = isset($item['json_data']    ) ? $item['json_data']     : null;
+                        $json_data     = isset($item['json_data']    ) ? (is_array($item['json_data']) ? json_encode($item['json_data'], JSON_UNESCAPED_UNICODE) : $item['json_data']) : null;
                         $raw_data      = isset($item['raw_data']     ) ? $item['raw_data']      : null;
                         $measure_date  = isset($item['measure_date'] ) ? $item['measure_date']  : date('Y-m-d H:i:s');
-                        $up_json_data  = isset($item['up_json_data'] ) ? $item['up_json_data']  : null;
+                        $up_json_data  = isset($item['up_json_data'] ) ? (is_array($item['up_json_data']) ? json_encode($item['up_json_data'], JSON_UNESCAPED_UNICODE) : $item['up_json_data']) : null;
                         $remark        = isset($item['remark']       ) ? $item['remark']        : null;
 
                         // 判斷並接收透過 $_FILES 上傳的 Binary 檔案
@@ -260,24 +273,24 @@
                         }
 
                         // 驗證必填欄位
-                        if (empty($sid) || $facility_id <= 0 || empty($measure_no) || empty($device_no) || empty($machine_model) || empty($measure_date)) {
+                        if ($facility_id <= 0 || empty($measure_no) || empty($asset_no) || empty($machine_model) || empty($measure_date)) {
                             $has_error = true;
                             $processed_results[] = [
                                 'sid'     => $sid,
                                 'status'  => 'false',
-                                'message' => '新增失敗，[sid]、[facility_id]、[measure_no]、[device_no]、[machine_model] 與 [measure_date] 為必填欄位！'
+                                'message' => '新增失敗，[facility_id]、[measure_no]、[asset_no]、[machine_model] 與 [measure_date] 為必填欄位！'
                             ];
                             continue;
                         }
 
                         // 檢查 sid 是否已存在
-                        $chk_sql = "SELECT * FROM $tableMain WHERE sid = ? LIMIT 1";
+                        $chk_sql = "SELECT * FROM `$tableMain` WHERE sid = ? LIMIT 1";
                         $chk_stmt = mysqli_prepare($link, $chk_sql);
                         mysqli_stmt_bind_param($chk_stmt, "s", $sid);
                         mysqli_stmt_execute($chk_stmt);
                         $chk_res = mysqli_stmt_get_result($chk_stmt);
-
-                        if ($chk_res && mysqli_num_rows($chk_res) > 0) {
+                        $always_insert = true;
+                        if ($chk_res && mysqli_num_rows($chk_res) > 0 && $always_insert == false) {
                             // -----------------------------
                             // 資料已存在 -> 執行更新 (UPDATE / REUPLOAD)
                             // -----------------------------
@@ -285,24 +298,38 @@
                             $exist_id   = $exist_data['id'];
                             mysqli_stmt_close($chk_stmt);
 
-                            $update_sql = "UPDATE $tableMain 
-                                           SET sid = ?, facility_id = ?, measure_no = ?, device_no = ?, machine_model = ?, 
-                                               online_type = ?, is_uploaded = ?, json_data = ?, raw_data = ?, file_name = ?, mime_type = ?, file_size = ?, 
-                                               file_data = ?, measure_date = ?, up_json_data = ?, remark = ?, updated_at = NOW() 
-                                           WHERE id = ?";
-                            
-                            $up_stmt = mysqli_prepare($link, $update_sql);
-                            
-                            // 綁定參數時，file_data (第13個欄位) 帶 NULL 作為占位符，多加 up_json_data ("s")
-                            $null_placeholder = NULL;
-                            mysqli_stmt_bind_param($up_stmt, "sissssissibsssi", 
-                                $sid, $facility_id, $measure_no, $device_no, $machine_model, 
-                                $online_type, $is_uploaded, $json_data, $raw_data, $file_name, $mime_type, $file_size, 
-                                $null_placeholder, $measure_date, $up_json_data, $remark, $exist_id
-                            );
-
-                            // 若有上傳檔案 Binary，使用 send_long_data 寫入 BLOB (欄位索引 12)
-                            if ($file_binary !== null) {
+                            // 若沒帶入新檔案則保留原本的檔案相關資訊，防止被覆蓋為 NULL
+                            if ($file_binary === null) {
+                                $update_sql = "UPDATE `$tableMain` 
+                                               SET sid = ?, facility_id = ?, measure_no = ?, asset_no = ?, machine_model = ?, 
+                                                   online_type = ?, is_uploaded = ?, json_data = ?, raw_data = ?, 
+                                                   tester_identifier = ?, tester_work_id = ?, tester_name = ?, editor = ?,
+                                                   measure_date = ?, up_json_data = ?, remark = ?, updated_at = NOW() 
+                                               WHERE id = ?";
+                                
+                                $up_stmt = mysqli_prepare($link, $update_sql);
+                                mysqli_stmt_bind_param($up_stmt, "sissssissonsssssi", 
+                                    $sid, $facility_id, $measure_no, $asset_no, $machine_model, 
+                                    $online_type, $is_uploaded, $json_data, $raw_data, 
+                                    $tester_identifier, $tester_work_id, $tester_name, $editor,
+                                    $measure_date, $up_json_data, $remark, $exist_id
+                                );
+                            } else {
+                                $update_sql = "UPDATE `$tableMain` 
+                                               SET sid = ?, facility_id = ?, measure_no = ?, asset_no = ?, machine_model = ?, 
+                                                   online_type = ?, is_uploaded = ?, json_data = ?, raw_data = ?, file_name = ?, mime_type = ?, file_size = ?, 
+                                                   file_data = ?, tester_identifier = ?, tester_work_id = ?, tester_name = ?, editor = ?,
+                                                   measure_date = ?, up_json_data = ?, remark = ?, updated_at = NOW() 
+                                               WHERE id = ?";
+                                
+                                $up_stmt = mysqli_prepare($link, $update_sql);
+                                $null_placeholder = NULL;
+                                mysqli_stmt_bind_param($up_stmt, "sissssissibssssssssi", 
+                                    $sid, $facility_id, $measure_no, $asset_no, $machine_model, 
+                                    $online_type, $is_uploaded, $json_data, $raw_data, $file_name, $mime_type, $file_size, 
+                                    $null_placeholder, $tester_identifier, $tester_work_id, $tester_name, $editor,
+                                    $measure_date, $up_json_data, $remark, $exist_id
+                                );
                                 mysqli_stmt_send_long_data($up_stmt, 12, $file_binary);
                             }
 
@@ -318,7 +345,7 @@
 
                                 writeMeasureLog(
                                     $link, $tableLog, $facility_id, $exist_id, $sid, $measure_no, 
-                                    $device_no, $machine_model, 'REUPLOAD', 
+                                    $asset_no, $machine_model, 'REUPLOAD', 
                                     ['before' => $log_before, 'after' => $log_after], 
                                     $member_id, $remote_ip, $who_call . ' 呼叫 api ' . $API_name
                                 );
@@ -332,21 +359,21 @@
                             // -----------------------------
                             if ($chk_stmt) mysqli_stmt_close($chk_stmt);
 
-                            $insert_sql = "INSERT INTO $tableMain 
-                                           (sid, facility_id, measure_no, device_no, machine_model, online_type, is_uploaded, json_data, raw_data, file_name, mime_type, file_size, file_data, measure_date, up_json_data, remark, created_at) 
-                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                            $generated_sid = !empty($sid) ? $sid : ('MD_' . substr(md5(uniqid(mt_rand(), true)), 0, 12));
+                            $insert_sql = "INSERT INTO `$tableMain` 
+                                           (sid, facility_id, measure_no, asset_no, machine_model, online_type, is_uploaded, json_data, raw_data, file_name, mime_type, file_size, file_data, tester_identifier, tester_work_id, tester_name, editor, measure_date, up_json_data, remark, created_at) 
+                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
                             
                             $in_stmt = mysqli_prepare($link, $insert_sql);
                             
-                            // 綁定參數時，file_data (第13個欄位) 帶 NULL 作為占位符，多加 up_json_data ("s")
                             $null_placeholder = NULL;
-                            mysqli_stmt_bind_param($in_stmt, "sissssissibssss", 
-                                $sid, $facility_id, $measure_no, $device_no, $machine_model, 
+                            mysqli_stmt_bind_param($in_stmt, "sissssissibsssssssss", 
+                                $generated_sid, $facility_id, $measure_no, $asset_no, $machine_model, 
                                 $online_type, $is_uploaded, $json_data, $raw_data, $file_name, $mime_type, $file_size, 
-                                $null_placeholder, $measure_date, $up_json_data, $remark
+                                $null_placeholder, $tester_identifier, $tester_work_id, $tester_name, $editor,
+                                $measure_date, $up_json_data, $remark
                             );
 
-                            // 若有上傳檔案 Binary，使用 send_long_data 寫入 BLOB (欄位索引 12)
                             if ($file_binary !== null) {
                                 mysqli_stmt_send_long_data($in_stmt, 12, $file_binary);
                             }
@@ -363,7 +390,7 @@
 
                                 writeMeasureLog(
                                     $link, $tableLog, $facility_id, $new_id, $sid, $measure_no, 
-                                    $device_no, $machine_model, 'INSERT', 
+                                    $asset_no, $machine_model, 'INSERT', 
                                     $log_item, 
                                     $member_id, $remote_ip, $who_call . ' 呼叫 api ' . $API_name
                                 );
@@ -385,33 +412,26 @@
                 // 3. 部分更新量測資料 (PUT / PATCH - 支援 Binary 檔案)
                 // ==========================================
                 case "edit":
-                    $id       = isset($src_data['id']      ) ? intval($src_data['id']) : 0;
-                    $sid      = isset($src_data['sid']     ) ? trim($src_data['sid'])  : '';
-                    $who_call = isset($src_data['who_call']) ? $src_data['who_call']   : 'app';
+                    $who_call = isset($src_data['who_call']) ? $src_data['who_call'] : 'app';
+                    $sid      = isset($src_data['sid']) ? trim($src_data['sid']) : '';
 
-                    if ($id <= 0 && empty($sid)) {
-                        $data = result_message("false", "0x0206", "編輯失敗，必須提供 [id] 或 [sid]！", $null_array);
+                    if (empty($sid)) {
+                        $data = result_message("false", "0x0206", "編輯失敗，必須提供 [sid]！", $null_array);
                         echo json_encode($data, JSON_UNESCAPED_UNICODE);
                         return;
                     }
 
                     // 尋找目標記錄
-                    if ($id > 0) {
-                        $chk_sql = "SELECT * FROM $tableMain WHERE id = ? LIMIT 1";
-                        $chk_stmt = mysqli_prepare($link, $chk_sql);
-                        mysqli_stmt_bind_param($chk_stmt, "i", $id);
-                    } else {
-                        $chk_sql = "SELECT * FROM $tableMain WHERE sid = ? LIMIT 1";
-                        $chk_stmt = mysqli_prepare($link, $chk_sql);
-                        mysqli_stmt_bind_param($chk_stmt, "s", $sid);
-                    }
+                    $chk_sql = "SELECT * FROM `$tableMain` WHERE sid = ? LIMIT 1";
+                    $chk_stmt = mysqli_prepare($link, $chk_sql);
+                    mysqli_stmt_bind_param($chk_stmt, "s", $sid);
                     
                     mysqli_stmt_execute($chk_stmt);
                     $chk_res = mysqli_stmt_get_result($chk_stmt);
 
                     if (!$chk_res || mysqli_num_rows($chk_res) == 0) {
                         if ($chk_stmt) mysqli_stmt_close($chk_stmt);
-                        $data = result_message("false", "0x0206", "編輯失敗，找不到指定的 $caption！", $null_array);
+                        $data = result_message("false", "0x0206", "編輯失敗，找不到指定的 $caption ！", $null_array);
                         echo json_encode($data, JSON_UNESCAPED_UNICODE);
                         return;
                     }
@@ -430,28 +450,32 @@
                         $src_data['file_data'] = NULL; // 標示有檔案需被更新
                     }
 
-                    // 動態組裝欄位（加入 up_json_data 對應）
+                    // 動態組裝欄位（包含人員欄位與 JSON 序列化）
                     $update_fields = [];
                     $params = [];
                     $types = "";
                     $blob_param_index = -1;
 
                     $fields_map = [
-                        'facility_id'   => 'i',
-                        'measure_no'    => 's',
-                        'device_no'     => 's',
-                        'machine_model' => 's',
-                        'online_type'   => 's',
-                        'is_uploaded'   => 'i',
-                        'json_data'     => 's',
-                        'raw_data'      => 's',
-                        'file_name'     => 's',
-                        'mime_type'     => 's',
-                        'file_size'     => 'i',
-                        'file_data'     => 'b',
-                        'measure_date'  => 's',
-                        'up_json_data'  => 's',
-                        'remark'        => 's'
+                        'facility_id'       => 'i',
+                        'measure_no'        => 's',
+                        'asset_no'         => 's',
+                        'machine_model'     => 's',
+                        'online_type'       => 's',
+                        'is_uploaded'       => 'i',
+                        'json_data'         => 's',
+                        'raw_data'          => 's',
+                        'file_name'         => 's',
+                        'mime_type'         => 's',
+                        'file_size'         => 'i',
+                        'file_data'         => 'b',
+                        'tester_identifier' => 's',
+                        'tester_work_id'    => 's',
+                        'tester_name'       => 's',
+                        'editor'            => 's',
+                        'measure_date'      => 's',
+                        'up_json_data'      => 's',
+                        'remark'            => 's'
                     ];
 
                     $curr_index = 0;
@@ -462,7 +486,11 @@
                                 $params[] = NULL;
                                 $blob_param_index = $curr_index;
                             } else {
-                                $params[] = ($type === 'i') ? intval($src_data[$field]) : $src_data[$field];
+                                $val = $src_data[$field];
+                                if (($field === 'json_data' || $field === 'up_json_data') && is_array($val)) {
+                                    $val = json_encode($val, JSON_UNESCAPED_UNICODE);
+                                }
+                                $params[] = ($type === 'i') ? intval($val) : $val;
                             }
                             $types .= $type;
                             $curr_index++;
@@ -476,7 +504,7 @@
                     }
 
                     $update_fields[] = "updated_at = NOW()";
-                    $update_sql = "UPDATE $tableMain SET " . implode(", ", $update_fields) . " WHERE id = ?";
+                    $update_sql = "UPDATE `$tableMain` SET " . implode(", ", $update_fields) . " WHERE id = ?";
                     
                     $params[] = $target_id;
                     $types .= "i";
@@ -504,7 +532,7 @@
                             isset($src_data['facility_id']) ? intval($src_data['facility_id']) : $old_data['facility_id'], 
                             $target_id, $old_data['sid'], 
                             isset($src_data['measure_no']) ? $src_data['measure_no'] : $old_data['measure_no'], 
-                            isset($src_data['device_no']) ? $src_data['device_no'] : $old_data['device_no'], 
+                            isset($src_data['asset_no']) ? $src_data['asset_no'] : $old_data['asset_no'], 
                             isset($src_data['machine_model']) ? $src_data['machine_model'] : $old_data['machine_model'], 
                             'UPDATE', 
                             ['before' => $log_old, 'update_payload' => $log_payload], 
@@ -520,9 +548,9 @@
                 // 4. 刪除量測資料 (DELETE)
                 // ==========================================
                 case "delete":
-                    $id       = isset($src_data['id']      ) ? intval($src_data['id']) : 0;
-                    $sid      = isset($src_data['sid']     ) ? trim($src_data['sid'])  : '';
-                    $who_call = isset($src_data['who_call']) ? $src_data['who_call']   : 'app';
+                    $id       = isset($src_data['id'        ]) && is_numeric($src_data['id']) ? intval($src_data['id']) : 0;
+                    $sid      = isset($src_data['sid'       ]) ? trim($src_data['sid'])  : '';
+                    $who_call = isset($src_data['who_call'  ]) ? $src_data['who_call']   : 'app';
 
                     if ($id <= 0 && empty($sid)) {
                         $data = result_message("false", "0x0206", "刪除失敗，必須提供 [id] 或 [sid]！", $null_array);
@@ -531,11 +559,11 @@
                     }
 
                     if ($id > 0) {
-                        $chk_sql = "SELECT * FROM $tableMain WHERE id = ? LIMIT 1";
+                        $chk_sql = "SELECT * FROM `$tableMain` WHERE id = ? LIMIT 1";
                         $chk_stmt = mysqli_prepare($link, $chk_sql);
                         mysqli_stmt_bind_param($chk_stmt, "i", $id);
                     } else {
-                        $chk_sql = "SELECT * FROM $tableMain WHERE sid = ? LIMIT 1";
+                        $chk_sql = "SELECT * FROM `$tableMain` WHERE sid = ? LIMIT 1";
                         $chk_stmt = mysqli_prepare($link, $chk_sql);
                         mysqli_stmt_bind_param($chk_stmt, "s", $sid);
                     }
@@ -545,7 +573,7 @@
 
                     if (!$chk_res || mysqli_num_rows($chk_res) == 0) {
                         if ($chk_stmt) mysqli_stmt_close($chk_stmt);
-                        $data = result_message("false", "0x0206", "刪除失敗，找不到指定的 $caption！", $null_array);
+                        $data = result_message("false", "0x0206", "刪除失敗，找不到指定的 $caption ！", $null_array);
                         echo json_encode($data, JSON_UNESCAPED_UNICODE);
                         return;
                     }
@@ -554,7 +582,7 @@
                     $target_id   = $target_data['id'];
                     mysqli_stmt_close($chk_stmt);
 
-                    $del_sql = "DELETE FROM $tableMain WHERE id = ?";
+                    $del_sql = "DELETE FROM `$tableMain` WHERE id = ?";
                     $del_stmt = mysqli_prepare($link, $del_sql);
                     mysqli_stmt_bind_param($del_stmt, "i", $target_id);
                     $exec_del = mysqli_stmt_execute($del_stmt);
@@ -568,7 +596,7 @@
 
                         writeMeasureLog(
                             $link, $tableLog, $target_data['facility_id'], $target_id, $target_data['sid'], 
-                            $target_data['measure_no'], $target_data['device_no'], $target_data['machine_model'], 
+                            $target_data['measure_no'], $target_data['asset_no'], $target_data['machine_model'], 
                             'DELETE', 
                             $log_target, 
                             $member_id, $remote_ip, $who_call . ' 呼叫 api ' . $API_name
