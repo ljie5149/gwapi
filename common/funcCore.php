@@ -120,6 +120,19 @@
 		}
 		return $ret;
 	}
+	function merge_sql_string_if_not_empty2($column_name, $val, $first = false, $method_flag="=", $is_value=false, $default_str="")
+	{
+		if ($is_value) {
+			$ret = ($first || !($val > -1) || $val == null) ? "" : " AND ";
+			$ret .= ($val > -1 && $val != null) ? $column_name.$method_flag."".$val."" : "";
+			if (empty($ret)) $ret = (!empty($default_str)) ? $default_str : "";
+		} else {
+			$ret = ($first || $val == "" || $val == null) ? "" : " AND ";
+			$ret .= ($val != "" && $val != null) ? $column_name.$method_flag."'".$val."'" : "";
+            if (empty($ret)) $ret = (!empty($default_str)) ? "'".$default_str."'" : "";
+		}
+		return $ret;
+	}
 	function merge_sql_string_anyway($column_name, $val, $method_flag="=")
 	{
 		return " AND ".$column_name.$method_flag."'".$val."'";

@@ -167,8 +167,8 @@
                 
                 const response = await fetch(`${CFG_API_URL}?${params.toString()}`);
                 const result = await response.json();
-                if (result.status === "true" && result.data && result.data.data) {
-                    hostConfigData = result.data.data;
+                if (result.status === "true" && result.data) {
+                    hostConfigData = result.data;
                     renderConfigValues();
                 } else {
                     console.error("無法取得設定資料：", result.responseMessage);

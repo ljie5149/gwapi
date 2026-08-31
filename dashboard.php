@@ -104,25 +104,19 @@
                         <tr><td colspan="5" class="no-data">資料載入中...</td></tr>
                     </tbody>
                 </table>
-                <!-- <div class="info-text">
-                    檔案與資料庫命名：原始資料 (Raw data) 命名格式為 日期 + 流水號 + 型號 + 序號
-                </div> -->
             </div>
 
             <!-- 2. 共通格式表格 -->
             <div id="commonTable" style="display: none;">
                 <table class="data-table">
-                    <thead>
+                    <!-- 修正處 1：新增 commonTableHead 以搭配動態表頭 -->
+                    <thead id="commonTableHead">
                         <tr>
                             <th class="checkbox-col"><input type="checkbox" class="select-all"></th>
-                            <th>身分證號</th>
-                            <th>姓名</th>
-                            <th>工號</th>
-                            <th>流水號</th>
-                            <th>次數</th>
-                            <th>收縮壓</th>
-                            <th>舒張壓</th>
-                            <th>量測時間</th>
+                            <th>檔案日期</th>
+                            <th>量測設備</th>
+                            <th>檔案名稱</th>
+                            <th>檔案大小</th>
                         </tr>
                     </thead>
                     <tbody id="commonTableBody">
@@ -146,12 +140,6 @@
             <div class="modal-close" id="closeDownloadModal">X</div>
             <h2 class="modal-title">資料匯出與下載</h2>
             <p class="modal-desc" id="downloadModalDesc">請確認下載資料筆數與格式。</p>
-            
-            <div class="modal-option-group">
-                <span>選擇匯出格式：</span>
-                <label><input type="radio" name="exportFormat" value="csv" checked> CSV 格式</label>
-                <label><input type="radio" name="exportFormat" value="json"> JSON 格式</label>
-            </div>
 
             <div class="modal-btn-group">
                 <button type="button" class="btn-modal-cancel" id="cancelDownloadBtn">取消</button>
@@ -189,16 +177,22 @@
     <!-- Flatpickr JS 與 繁體中文語系包 -->
     <script src="./js/flatpickr.js"></script>
     <script src="./js/flatpickr.zh-tw.js"></script>
-    
+
+    <!-- 在 HTML/PHP 頁面 <head> 或 <body> 底部引入 -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script> -->
+    <script src="./js/jszip/jszip.min.js"></script>
+    <script src="./js/FileSaver/FileSaver.min.js"></script>
+
     <script>
         const DEV_API_URL = '<?= $g_root_url ?>api/JTG_devselection.php';
         const MEASURE_API_URL = '<?= $g_root_url ?>api/JTG_measure.php';
         const SSO_TOKEN = '<?= htmlspecialchars($sso_token); ?>';
 
-        let currentMeasureData = []; // 快取從 JTG_measure API 撈出的原始資料
+        let currentMeasureData = []; 
         let debounceTimer = null;
-        let pendingDeleteBoxes = []; // 快取欲刪除的 Checkbox 節點
-        let pendingDownloadData = []; // 快取欲下載的資料陣列
+        let pendingDeleteBoxes = []; 
+        let pendingDownloadData = []; 
 
         const btnRaw = document.getElementById('btnRaw');
         const btnCommon = document.getElementById('btnCommon');
@@ -206,13 +200,11 @@
         const commonTable = document.getElementById('commonTable');
         const searchInput = document.getElementById('searchInput');
 
-        // HTML 轉義防護 (XSS)
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
             return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
         }
 
-        // 格式化檔案大小
         function formatFileSize(bytes) {
             if (!bytes || bytes === 0) return '0 B';
             const k = 1024;
@@ -234,18 +226,16 @@
                 const response = await fetch(`${DEV_API_URL}?${params.toString()}`, { method: 'GET' });
                 const res = await response.json();
 
-                // console.log(response);
                 let deviceList = [];
                 if (res.status === 'true' && res.data && Array.isArray(res.data)) {
-                    deviceList = res.data;
-                } else if (res.status === 'true' && Array.isArray(res.data)) {
                     deviceList = res.data;
                 }
 
                 let optionsHtml = '<option value="">全部設備</option>';
                 if (deviceList.length > 0) {
+                    // 修正處 2：同時把中文名稱寫入 data-name 屬性，供後續判定
                     optionsHtml += deviceList.map(dev => `
-                        <option value="${escapeHtml(dev.device_type)}">
+                        <option value="${escapeHtml(dev.device_type)}" data-name="${escapeHtml(dev.device_name)}">
                             ${escapeHtml(dev.device_name)}
                         </option>
                     `).join('');
@@ -258,7 +248,7 @@
         }
 
         // =========================================================
-        // 2. 取得健檢量測資料 (JTG_measure API - GET 帶入搜尋條件)
+        // 2. 取得健檢量測資料 (JTG_measure API - GET)
         // =========================================================
         async function fetchMeasureData() {
             const rawTbody = document.getElementById('rawTableBody');
@@ -266,16 +256,14 @@
             rawTbody.innerHTML = '<tr><td colspan="5" class="no-data">資料載入中...</td></tr>';
             commonTbody.innerHTML = '<tr><td colspan="9" class="no-data">資料載入中...</td></tr>';
 
-            // 解析 dateRangeInput 中的起迄日期 (以 " to " 或 "~" 作為分隔符號)
             const dateRangeVal = document.getElementById('dateRangeInput').value.trim();
             let startDate = '';
             let endDate = '';
 
             if (dateRangeVal) {
-                // 相容 "YYYY-MM-DD to YYYY-MM-DD" 或 "YYYY-MM-DD ~ YYYY-MM-DD" 等常見格式
                 const splitDates = dateRangeVal.split(/\s*(?:to|~|\s)\s*/i);
                 startDate = splitDates[0] || '';
-                endDate = splitDates[1] || splitDates[0] || ''; // 若只選一天則起迄相同
+                endDate = splitDates[1] || splitDates[0] || '';
             }
 
             const deviceType = document.getElementById('deviceSelect').value;
@@ -295,8 +283,8 @@
                 const response = await fetch(`${MEASURE_API_URL}?${params.toString()}`, { method: 'GET' });
                 const res = await response.json();
 
-                if (res.status === 'true' && res.data && Array.isArray(res.data.data)) {
-                    currentMeasureData = res.data.data;
+                if (res.status === 'true' && res.data && Array.isArray(res.data)) {
+                    currentMeasureData = res.data;
                 } else {
                     currentMeasureData = [];
                 }
@@ -312,7 +300,13 @@
         // 重新繪製所有表格
         function renderTables() {
             renderRawTable(currentMeasureData);
-            renderCommonTable(currentMeasureData);
+            
+            // 修正處 3：抓取 Select 目前選中的設備中文名稱傳給 renderCommonTable
+            const selectElem = document.getElementById('deviceSelect');
+            const selectedOption = selectElem.options[selectElem.selectedIndex];
+            const deviceName = selectedOption ? (selectedOption.getAttribute('data-name') || selectedOption.text.trim()) : '';
+
+            renderCommonTable(currentMeasureData, deviceName);
         }
 
         // =========================================================
@@ -332,8 +326,8 @@
 
             dataList.forEach(row => {
                 const dateOnly = row.measure_date ? row.measure_date.split(' ')[0] : '-';
-                const deviceName = row.machine_model || row.device_no || '-';
-                const fileName = row.file_name || (row.sid ? `${row.sid}.txt` : '-');
+                const deviceName = row.device_type_zhtw || row.machine_model || row.device_no || '-';
+                const fileName = row.file_name || '-';
                 const fileSize = row.file_size ? formatFileSize(row.file_size) : '-';
 
                 if (keyword) {
@@ -359,23 +353,130 @@
                 rawTbody.innerHTML = html;
             }
         }
-
+        
         // =========================================================
-        // 4. 渲染共通格式表格 (Common Table)
+        // 4. 渲染動態設備表格 (Dynamic Device Table)
         // =========================================================
-        function renderCommonTable(dataList) {
+        function renderCommonTable(dataList, selectedDeviceName) {
+            const commonThead = document.getElementById('commonTableHead');
             const commonTbody = document.getElementById('commonTableBody');
             const keyword = searchInput.value.trim().toLowerCase();
 
+            let columns = [];
+            switch (selectedDeviceName) {
+                case "眼壓儀":
+                    columns = [
+                        { title: "次數", getVal: (p, r, idx) => idx + 1 },
+                        { title: "眼壓值(L)", getVal: (p) => p.LeftEye_mmHg || '-' },
+                        { title: "眼壓值(R)", getVal: (p) => p.RightEye_mmHg || '-' },
+                        { title: "健檢時間", getVal: (p, r) => r.measure_date || '-' }
+                    ];
+                    break;
+
+                case "身高體重機":
+                    columns = [
+                        { title: "次數", getVal: (p, r, idx) => idx + 1 },
+                        { title: "身高", getVal: (p) => p.Height_cm || '-' },
+                        { title: "體重", getVal: (p) => p.Weight_kg || '-' },
+                        { title: "BMI", getVal: (p) => p.BMI || '-' },
+                        { title: "更新時間", getVal: (p, r) => r.measure_date || '-' }
+                    ];
+                    break;
+
+                case "血壓計":
+                    columns = [
+                        { title: "次數", getVal: (p, r, idx) => idx + 1 },
+                        { title: "收縮壓", getVal: (p) => p.SYS || p.sys || p.systolic || '-' },
+                        { title: "舒張壓", getVal: (p) => p.DIA || p.dia || p.diastolic || '-' },
+                        { title: "脈搏", getVal: (p) => p.Pulse || p.pulse || '-' },
+                        { title: "更新時間", getVal: (p, r) => r.measure_date || '-' }
+                    ];
+                    break;
+
+                case "驗光機":
+                    columns = [
+                        { title: "次數", getVal: (p, r, idx) => idx + 1 },
+                        { title: "屈光度(L)", getVal: (p) => p.LeftEyeTypical?.SPH || '-' },
+                        { title: "屈光度(R)", getVal: (p) => p.RightEyeTypical?.SPH || '-' },
+                        { title: "閃光度(L)", getVal: (p) => p.LeftEyeTypical?.CYL || '-' },
+                        { title: "閃光度(R)", getVal: (p) => p.RightEyeTypical?.CYL || '-' },
+                        { title: "更新時間", getVal: (p, r) => r.measure_date || '-' }
+                    ];
+                    break;
+
+                case "體脂計":
+                case "肺功能儀":
+                case "骨密度儀":
+                    columns = [
+                        { 
+                            title: "檔案日期", 
+                            getVal: (p, r) => r.measure_date ? r.measure_date.split(' ')[0] : '-' 
+                        },
+                        { 
+                            title: "量測設備", 
+                            getVal: (p, r) => r.device_type_zhtw || r.machine_model || selectedDeviceName || '-' 
+                        },
+                        { 
+                            title: "檔案名稱", 
+                            getVal: (p, r) => r.file_name || '-' 
+                        },
+                        { 
+                            title: "檔案大小", 
+                            getVal: (p, r) => r.file_size ? formatFileSize(r.file_size) : '-' 
+                        }
+                    ];
+                    break;
+
+                default:
+                    columns = [
+                        { 
+                            title: "檔案日期", 
+                            getVal: (p, r) => r.measure_date ? r.measure_date.split(' ')[0] : '-' 
+                        },
+                        { 
+                            title: "量測設備", 
+                            getVal: (p, r) => r.device_type_zhtw || r.machine_model || selectedDeviceName || '-' 
+                        },
+                        { 
+                            title: "檔案名稱", 
+                            getVal: (p, r) => r.file_name || '-' 
+                        },
+                        { 
+                            title: "檔案大小", 
+                            getVal: (p, r) => r.file_size ? formatFileSize(r.file_size) : '-' 
+                        }
+                    ];
+                    break;
+            }
+
+            const totalColumns = columns.length + 1;
+
+            if (commonThead) {
+                let headHtml = '<tr><th class="checkbox-col"><input type="checkbox" class="select-all"></th>';
+                columns.forEach(col => {
+                    headHtml += `<th>${escapeHtml(col.title)}</th>`;
+                });
+                headHtml += '</tr>';
+                commonThead.innerHTML = headHtml;
+
+                // 重新繫結全選按鈕事件
+                const selectAllBtn = commonThead.querySelector('.select-all');
+                if (selectAllBtn) {
+                    selectAllBtn.addEventListener('change', function() {
+                        commonTbody.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = this.checked);
+                    });
+                }
+            }
+
             if (!dataList || dataList.length === 0) {
-                commonTbody.innerHTML = '<tr><td colspan="9" class="no-data">查無共通格式資料</td></tr>';
+                commonTbody.innerHTML = `<tr><td colspan="${totalColumns}" class="no-data">查無共通格式資料</td></tr>`;
                 return;
             }
 
-            let html = '';
+            let bodyHtml = '';
             let matchCount = 0;
 
-            dataList.forEach(row => {
+            dataList.forEach((row, index) => {
                 let parsedObj = {};
                 try {
                     if (row.up_json_data) {
@@ -387,80 +488,146 @@
                     parsedObj = {};
                 }
 
-                const idCard = parsedObj.id_card || parsedObj.person_id || '-';
-                const name = parsedObj.name || parsedObj.user_name || '-';
-                const empId = parsedObj.emp_id || parsedObj.staff_id || '-';
-                const sid = row.sid || row.measure_no || '-';
-                const count = parsedObj.count || parsedObj.times || '1';
-                const sys = parsedObj.sys || parsedObj.systolic || '-';
-                const dia = parsedObj.dia || parsedObj.diastolic || '-';
-                const measureTime = row.measure_date || '-';
-
                 if (keyword) {
+                    const idCard = parsedObj.id_card || parsedObj.person_id || row.tester_identifier || '';
+                    const name = parsedObj.name || parsedObj.user_name || row.tester_name || '';
+                    const empId = parsedObj.emp_id || parsedObj.staff_id || row.tester_work_id || '';
+                    const sid = row.sid || row.measure_no || '';
                     const matchText = `${idCard} ${name} ${empId} ${sid}`.toLowerCase();
+
                     if (!matchText.includes(keyword)) return;
                 }
 
                 matchCount++;
-                html += `
-                    <tr>
-                        <td class="checkbox-col"><input type="checkbox" class="row-checkbox" value="${escapeHtml(row.id)}"></td>
-                        <td>${escapeHtml(idCard)}</td>
-                        <td>${escapeHtml(name)}</td>
-                        <td>${escapeHtml(empId)}</td>
-                        <td>${escapeHtml(sid)}</td>
-                        <td>${escapeHtml(count)}</td>
-                        <td>${escapeHtml(sys)}</td>
-                        <td>${escapeHtml(dia)}</td>
-                        <td>${escapeHtml(measureTime)}</td>
-                    </tr>
-                `;
+
+                // 修正處 4：Checkbox 必須綁定資料主鍵 row.id，供刪除 API 使用
+                bodyHtml += `<tr><td class="checkbox-col"><input type="checkbox" class="row-checkbox" value="${escapeHtml(row.id)}"></td>`;
+                columns.forEach(col => {
+                    const val = col.getVal(parsedObj, row, index);
+                    bodyHtml += `<td>${escapeHtml(String(val))}</td>`;
+                });
+                bodyHtml += '</tr>';
             });
 
             if (matchCount === 0) {
-                commonTbody.innerHTML = '<tr><td colspan="9" class="no-data">查無符合搜尋條件的資料</td></tr>';
+                commonTbody.innerHTML = `<tr><td colspan="${totalColumns}" class="no-data">查無符合搜尋條件的資料</td></tr>`;
             } else {
-                commonTbody.innerHTML = html;
+                commonTbody.innerHTML = bodyHtml;
             }
         }
 
         // =========================================================
         // 5. 執行檔案下載匯出邏輯 (CSV / JSON)
         // =========================================================
-        function executeDownload(dataList, format) {
+        // =========================================================
+        // 5. 根據步驟一、二、三 執行打包壓縮 ZIP 並下載
+        // =========================================================
+        async function executeZipDownload(dataList) {
             if (!dataList || dataList.length === 0) {
                 alert('無可匯出的資料！');
                 return;
             }
 
-            const fileName = `export_measure_${new Date().toISOString().slice(0,10)}.${format}`;
+            const zip = new JSZip();
 
-            if (format === 'json') {
-                const jsonStr = JSON.stringify(dataList, null, 2);
-                const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
-                triggerFileDownload(blob, fileName);
-            } else {
-                // CSV 格式匯出 (含 BOM 防亂碼)
-                let csvContent = "\uFEFF";
-                const headers = ["ID", "流水號(SID)", "設備型號", "量測時間", "原始JSON內容"];
-                csvContent += headers.join(",") + "\n";
+            dataList.forEach((item, index) => {
+                // 檢查是否有二進位檔案內容 (file_data)
+                // 取得原始檔名
+                const originalFileName = item.file_name || '';
+                // 檢查是否有原始檔名且 file_data 存在
+                if (originalFileName !== '' && item.file_data) {
+                    // 1. 提取原副檔名 (包含點，例如: ".csv" 或 ".pdf")
+                    const lastDotIndex = originalFileName.lastIndexOf('.');
+                    const ext = lastDotIndex !== -1 ? originalFileName.substring(lastDotIndex) : '';
 
-                dataList.forEach(item => {
-                    const row = [
-                        `"${item.id || ''}"`,
-                        `"${item.sid || ''}"`,
-                        `"${item.machine_model || ''}"`,
-                        `"${item.measure_date || ''}"`,
-                        `"${(item.up_json_data || item.json_data || '').replace(/"/g, '""')}"`
-                    ];
-                    csvContent += row.join(",") + "\n";
-                });
+                    // 2. 處理檔名所需的各個欄位資訊
+                    const measureDate = (item.measure_date || '').replace(/[- :]/g, '');
+                    const measureNo = item.measure_no || item.sid || '';
+                    const machineModel = item.machine_model || '';
+                    const assetNo = item.asset_no || '';
 
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                triggerFileDownload(blob, fileName);
-            }
+                    // 3. 組合新檔名：量測日期_流水號_型號_序號.原副檔名
+                    const newFileName = `${measureDate}_${measureNo}_${machineModel}_${assetNo}${ext}`;
+
+                    let binaryData = item.file_data;
+
+                    // 4. 判斷資料格式並寫入 ZIP
+                    if (typeof binaryData === 'string') {
+                        // 去除可能帶有的 Data URI 前綴 (例如: data:text/csv;base64,xxxx)
+                        if (binaryData.includes(',')) {
+                            binaryData = binaryData.split(',')[1];
+                        }
+                        // 去除換行與空白
+                        binaryData = binaryData.replace(/\s/g, '');
+                        
+                        console.log("這段是 Base64，檔名改為：", newFileName);
+                        zip.file(newFileName, binaryData, { base64: true });
+                    } else {
+                        console.log("這段是 Blob/Binary，檔名改為：", newFileName);
+                        zip.file(newFileName, binaryData);
+                    }
+                } else {
+                    // 【步驟二】沒有 file_data，輸出成 txt 檔
+                    // 命名規則：量測日期 + 流水號 + 型號 + 序號
+                    const measureDate = (item.measure_date || '').replace(/[- :]/g, '');
+                    const measureNo = item.measure_no || item.sid || '';
+                    const machineModel = item.machine_model || '';
+                    const assetNo = item.asset_no || '';
+                    
+                    const txtFileName = `${measureDate}_${measureNo}_${machineModel}_${assetNo}.txt`;
+
+                    // 解析 json_data 內容
+                    let parsedJson = {};
+                    try {
+                        if (item.up_json_data) {
+                            parsedJson = typeof item.up_json_data === 'string' ? JSON.parse(item.up_json_data) : item.up_json_data;
+                        } else if (item.json_data) {
+                            parsedJson = typeof item.json_data === 'string' ? JSON.parse(item.json_data) : item.json_data;
+                        }
+                    } catch(e) {
+                        parsedJson = {};
+                    }
+
+                    // 組合 COMMON 欄位與 json_data 展開欄位
+                    let txtContent = "";
+                    txtContent += `measure_no: ${item.measure_no || ''}\n`;
+                    txtContent += `tester_identifier: ${item.tester_identifier || ''}\n`;
+                    txtContent += `tester_work_id: ${item.tester_work_id || ''}\n`;
+                    txtContent += `tester_name: ${item.tester_name || ''}\n`;
+                    txtContent += `tester_age: ${item.tester_age || ''}\n`;
+                    txtContent += `tester_height: ${item.tester_height || ''}\n`;
+                    txtContent += `editor: ${item.editor || ''}\n`;
+                    txtContent += `asset_no: ${item.asset_no || ''}\n`;
+                    txtContent += `device_type_zhtw: ${item.device_type_zhtw || ''}\n`;
+                    txtContent += `machine_model: ${item.machine_model || ''}\n`;
+
+                    // 追加 json_data 內部解析過後的欄位
+                    txtContent += `--- JSON DATA ---\n`;
+                    for (const [key, value] of Object.entries(parsedJson)) {
+                        txtContent += `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}\n`;
+                    }
+
+                    zip.file(txtFileName, txtContent);
+                }
+            });
+
+            // 【步驟三】壓縮成 MeasureData_當下日期時間.zip 並開始下載
+            const zipFileName = `MeasureData_${getFormattedCurrentDateTime()}.zip`;
+            const content = await zip.generateAsync({ type: "blob" });
+            saveAs(content, zipFileName);
         }
-
+        function getFormattedCurrentDateTime() {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0'); // 月份從 0 開始，所以要 +1
+            const dd = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            
+            // 組合並回傳 YYYYMMDDHHmmss 格式
+            return `${yyyy}${mm}${dd}${hh}${min}${ss}`;
+        }
         function triggerFileDownload(blob, fileName) {
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
@@ -507,10 +674,6 @@
             fetchMeasureData();
         }
 
-
-        // =========================================================
-        // 5. 初始化 Flatpickr 日期選擇器
-        // =========================================================
         function initDateRangePicker() {
             flatpickr("#dateRangeInput", {
                 mode: "range",
@@ -519,7 +682,7 @@
                 locale: { rangeSeparator: " - " },
                 onChange: function(selectedDates, dateStr, instance) {
                     if (selectedDates.length === 2) {
-                        fetchDeviceList();
+                        fetchMeasureData();
                     }
                 }
             });
@@ -529,7 +692,6 @@
         // 事件監聽與切換
         // =========================================================
         
-        // 頁籤切換：原始資料
         btnRaw.addEventListener('click', function() {
             btnRaw.className = 'tab-btn active';
             btnCommon.className = 'tab-btn inactive';
@@ -537,7 +699,6 @@
             commonTable.style.display = 'none';
         });
 
-        // 頁籤切換：共通格式
         btnCommon.addEventListener('click', function() {
             btnCommon.className = 'tab-btn active';
             btnRaw.className = 'tab-btn inactive';
@@ -545,7 +706,6 @@
             commonTable.style.display = 'block';
         });
 
-        // 全選控制
         document.querySelectorAll('.select-all').forEach(selectAll => {
             selectAll.addEventListener('change', function() {
                 const table = this.closest('table');
@@ -553,11 +713,9 @@
             });
         });
 
-        // 條件變更自動重新查詢 (修改處：使用 dateRangeInput 替換舊的 startDate / endDate)
         document.getElementById('dateRangeInput').addEventListener('change', fetchMeasureData);
         document.getElementById('deviceSelect').addEventListener('change', fetchMeasureData);
 
-        // 搜尋輸入框（防抖動打 API）
         searchInput.addEventListener('input', function() {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
@@ -573,7 +731,6 @@
         const confirmDownloadBtn = document.getElementById('confirmDownloadBtn');
         const downloadModalDesc = document.getElementById('downloadModalDesc');
 
-        // 按下主頁「下載」按鈕：計算勾選與全部資料筆數並開啟 Modal
         openDownloadModalBtn.addEventListener('click', function() {
             const activeTable = rawTable.style.display !== 'none' ? rawTable : commonTable;
             const selectedBoxes = Array.from(activeTable.querySelectorAll('.row-checkbox:checked'));
@@ -595,15 +752,12 @@
             downloadModal.style.display = 'flex';
         });
 
-        // Modal 關閉 / 取消按鈕
         closeDownloadModalBtn.addEventListener('click', function() { downloadModal.style.display = 'none'; });
         cancelDownloadBtn.addEventListener('click', function() { downloadModal.style.display = 'none'; });
 
-        // Modal 「確定下載」按鈕：執行下載
         confirmDownloadBtn.addEventListener('click', function() {
-            const selectedFormat = document.querySelector('input[name="exportFormat"]:checked').value;
             downloadModal.style.display = 'none';
-            executeDownload(pendingDownloadData, selectedFormat);
+            executeZipDownload(pendingDownloadData);
         });
 
         // --- 刪除 Modal 控制邏輯 ---
@@ -614,7 +768,6 @@
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
         const deleteModalDesc = document.getElementById('deleteModalDesc');
 
-        // 按下主頁「刪除」按鈕：檢查勾選狀態並開啟 Modal
         openDeleteModalBtn.addEventListener('click', function() {
             const activeTable = rawTable.style.display !== 'none' ? rawTable : commonTable;
             pendingDeleteBoxes = Array.from(activeTable.querySelectorAll('.row-checkbox:checked'));
@@ -628,11 +781,9 @@
             deleteModal.style.display = 'flex';
         });
 
-        // Modal 關閉 / 取消按鈕
         closeDeleteModalBtn.addEventListener('click', function() { deleteModal.style.display = 'none'; });
         cancelDeleteBtn.addEventListener('click', function() { deleteModal.style.display = 'none'; });
 
-        // Modal 「確定刪除」按鈕：發送請求刪除
         confirmDeleteBtn.addEventListener('click', async function() {
             deleteModal.style.display = 'none';
             await executeDelete(pendingDeleteBoxes);
@@ -648,14 +799,12 @@
         closeLogoutModalBtn.addEventListener('click', function() { logoutModal.style.display = 'none'; });
         cancelLogoutBtn.addEventListener('click', function() { logoutModal.style.display = 'none'; });
 
-        // 點擊 Modal 外圍黑色遮罩關閉對話框
         window.addEventListener('click', function(e) {
             if (e.target === logoutModal) logoutModal.style.display = 'none';
             if (e.target === deleteModal) deleteModal.style.display = 'none';
             if (e.target === downloadModal) downloadModal.style.display = 'none';
         });
 
-        // 頁面初始化
         document.addEventListener('DOMContentLoaded', async function() {
             initDateRangePicker();
             await loadDeviceOptions();

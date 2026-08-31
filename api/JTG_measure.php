@@ -199,8 +199,8 @@
                     }
 
                     // 回傳欄位含檢測人員相關欄位與檔案資料
-                    $sql = "SELECT id, sid, facility_id, measure_no, asset_no, machine_model, asset_no, 
-                                   online_type, is_uploaded, json_data, raw_data, file_name, mime_type, file_size, 
+                    $sql = "SELECT id, sid, facility_id, measure_no, asset_no, device_type_zhtw, machine_model, asset_no, 
+                                   online_type, is_uploaded, json_data, raw_data, file_name, mime_type, file_size, file_data, 
                                    tester_identifier, tester_work_id, tester_name, editor, measure_count, 
                                    measure_date, up_json_data, remark, created_at, updated_at 
                             FROM `$tableMain` 
@@ -218,6 +218,12 @@
                         if ($result && mysqli_num_rows($result) > 0) {
                             $query_rows_tmp = [];
                             while ($row = mysqli_fetch_assoc($result)) {
+                                if (!empty($row['file_data'])) {
+                                    // 將二進位轉為 Base64 字串
+                                    $row['file_data'] = base64_encode($row['file_data']);
+                                } else {
+                                    $row['file_data'] = "";
+                                }
                                 array_push($query_rows_tmp, $row);
                             }
                             $data = result_message("true", "0x0200", "取得 $caption 成功", $query_rows_tmp);
@@ -248,6 +254,7 @@
                         $editor             = isset($item['editor'              ]) ? trim($item['editor'            ])     : '';
 
                         $facility_id   = isset($item['facility_id']   ) ? intval($item['facility_id']) : 0;
+                        $device_type_zhtw    = isset($item['device_type_zhtw']    ) ? trim($item['device_type_zhtw'])  : '';
                         $measure_no    = isset($item['measure_no']    ) ? trim($item['measure_no'])  : '';
                         $asset_no     = isset($item['asset_no']     ) ? trim($item['asset_no'])   : '';
                         $machine_model = isset($item['machine_model'] ) ? trim($item['machine_model']) : '';
@@ -301,15 +308,17 @@
                             // 若沒帶入新檔案則保留原本的檔案相關資訊，防止被覆蓋為 NULL
                             if ($file_binary === null) {
                                 $update_sql = "UPDATE `$tableMain` 
-                                               SET sid = ?, facility_id = ?, measure_no = ?, asset_no = ?, machine_model = ?, 
+                                               SET sid = ?, facility_id = ?, device_type_zhtw = ?, measure_no = ?, asset_no = ?, machine_model = ?, 
+                                                    device_type_zhtw = ?, 
                                                    online_type = ?, is_uploaded = ?, json_data = ?, raw_data = ?, 
                                                    tester_identifier = ?, tester_work_id = ?, tester_name = ?, editor = ?,
                                                    measure_date = ?, up_json_data = ?, remark = ?, updated_at = NOW() 
                                                WHERE id = ?";
                                 
                                 $up_stmt = mysqli_prepare($link, $update_sql);
-                                mysqli_stmt_bind_param($up_stmt, "sissssissonsssssi", 
+                                mysqli_stmt_bind_param($up_stmt, "sisssssissonsssssi", 
                                     $sid, $facility_id, $measure_no, $asset_no, $machine_model, 
+                                    $device_type_zhtw,
                                     $online_type, $is_uploaded, $json_data, $raw_data, 
                                     $tester_identifier, $tester_work_id, $tester_name, $editor,
                                     $measure_date, $up_json_data, $remark, $exist_id
@@ -317,6 +326,7 @@
                             } else {
                                 $update_sql = "UPDATE `$tableMain` 
                                                SET sid = ?, facility_id = ?, measure_no = ?, asset_no = ?, machine_model = ?, 
+                                                    device_type_zhtw = ?, 
                                                    online_type = ?, is_uploaded = ?, json_data = ?, raw_data = ?, file_name = ?, mime_type = ?, file_size = ?, 
                                                    file_data = ?, tester_identifier = ?, tester_work_id = ?, tester_name = ?, editor = ?,
                                                    measure_date = ?, up_json_data = ?, remark = ?, updated_at = NOW() 
@@ -324,8 +334,9 @@
                                 
                                 $up_stmt = mysqli_prepare($link, $update_sql);
                                 $null_placeholder = NULL;
-                                mysqli_stmt_bind_param($up_stmt, "sissssissibssssssssi", 
+                                mysqli_stmt_bind_param($up_stmt, "sisssssissibssssssssi", 
                                     $sid, $facility_id, $measure_no, $asset_no, $machine_model, 
+                                    $device_type_zhtw, 
                                     $online_type, $is_uploaded, $json_data, $raw_data, $file_name, $mime_type, $file_size, 
                                     $null_placeholder, $tester_identifier, $tester_work_id, $tester_name, $editor,
                                     $measure_date, $up_json_data, $remark, $exist_id
@@ -361,17 +372,18 @@
 
                             $generated_sid = !empty($sid) ? $sid : ('MD_' . substr(md5(uniqid(mt_rand(), true)), 0, 12));
                             $insert_sql = "INSERT INTO `$tableMain` 
-                                           (sid, facility_id, measure_no, asset_no, machine_model, online_type, is_uploaded, json_data, raw_data, file_name, mime_type, file_size, file_data, tester_identifier, tester_work_id, tester_name, editor, measure_date, up_json_data, remark, created_at) 
-                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                                           (sid, facility_id, measure_no, asset_no, device_type_zhtw, machine_model, online_type, is_uploaded, json_data, raw_data, file_name, mime_type, file_size, file_data, tester_identifier, tester_work_id, tester_name, editor, measure_date, up_json_data, remark, created_at) 
+                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
                             
                             $in_stmt = mysqli_prepare($link, $insert_sql);
                             
                             $null_placeholder = NULL;
-                            mysqli_stmt_bind_param($in_stmt, "sissssissibsssssssss", 
-                                $generated_sid, $facility_id, $measure_no, $asset_no, $machine_model, 
-                                $online_type, $is_uploaded, $json_data, $raw_data, $file_name, $mime_type, $file_size, 
-                                $null_placeholder, $tester_identifier, $tester_work_id, $tester_name, $editor,
-                                $measure_date, $up_json_data, $remark
+                            mysqli_stmt_bind_param($in_stmt, "sisssssissibsssssssss", 
+                                $generated_sid, $facility_id, $measure_no, $asset_no, $device_type_zhtw, 
+                                $machine_model, $online_type, $is_uploaded, $json_data, $raw_data, 
+                                $file_name, $mime_type, $file_size, $null_placeholder, $tester_identifier, 
+                                $tester_work_id, $tester_name, $editor, $measure_date, $up_json_data, 
+                                $remark
                             );
 
                             if ($file_binary !== null) {
@@ -459,7 +471,8 @@
                     $fields_map = [
                         'facility_id'       => 'i',
                         'measure_no'        => 's',
-                        'asset_no'         => 's',
+                        'asset_no'          => 's',
+                        'device_type_zhtw'  => 's',
                         'machine_model'     => 's',
                         'online_type'       => 's',
                         'is_uploaded'       => 'i',
@@ -531,6 +544,7 @@
                             $link, $tableLog, 
                             isset($src_data['facility_id']) ? intval($src_data['facility_id']) : $old_data['facility_id'], 
                             $target_id, $old_data['sid'], 
+                            isset($src_data['device_type_zhtw']) ? $src_data['device_type_zhtw'] : $old_data['device_type_zhtw'], 
                             isset($src_data['measure_no']) ? $src_data['measure_no'] : $old_data['measure_no'], 
                             isset($src_data['asset_no']) ? $src_data['asset_no'] : $old_data['asset_no'], 
                             isset($src_data['machine_model']) ? $src_data['machine_model'] : $old_data['machine_model'], 

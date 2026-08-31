@@ -181,6 +181,27 @@
             background-color: #ffffff;
         }
 
+        
+        /* 將共通格式表格設定為固定佈局與 100% 寬度 */
+        #commonTable .data-table {
+            width: 100%;
+            table-layout: fixed; /* 關鍵：強制欄位依比例或平均分配寬度 */
+            border-collapse: collapse;
+        }
+
+        /* 文字過長自動換行與儲存格樣式 */
+        #commonTable .data-table th,
+        #commonTable .data-table td {
+            word-break: break-word; /* 文字過長時自動換行 */
+            text-align: center;      /* 文字置中 */
+            padding: 8px 10px;
+        }
+
+        /* 固定第 1 欄（勾選框）寬度，其餘資料欄位會自動平均分配剩餘寬度 */
+        #commonTable .data-table .checkbox-col {
+            width: 50px !important;
+        }
+
         /* 資料表格 */
         .table-card {
             background-color: #f7f7f7;
@@ -379,14 +400,17 @@
             font-size: 15px;
         }
         /* Modal 通用按鈕與表單樣式擴充 */
+        /* 修改後：調整為與取消按鈕相同大小的設定 */
         .btn-modal-confirm-download {
             background-color: #28a745;
             color: #fff;
             border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
+            padding: 12px 35px;
+            border-radius: 12px;
+            font-size: 22px;
+            font-weight: bold;
             cursor: pointer;
-            font-weight: 500;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
         }
         .btn-modal-confirm-download:hover {
             background-color: #218838;
