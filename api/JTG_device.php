@@ -372,43 +372,41 @@
                 // 3. 部分更新設備資料 (PUT / PATCH)
                 // ==========================================
                 case "edit":
-                    $who_call     = isset($src_data['who_call']    ) ? $src_data['who_call']     : 'app';
-                    $sid          = isset($src_data['sid']         ) ? trim($src_data['sid'])    : '';
-                    $pc_mac       = isset($src_data['pc_mac']      ) ? trim($src_data['pc_mac']) : null;
-                    $asset_no     = isset($src_data['asset_no']    ) ? trim($src_data['asset_no']): '';
-                    $device_type  = isset($src_data['device_type'] ) ? trim($src_data['device_type']) : '';
-                    $device_name  = isset($src_data['device_name'] ) ? trim($src_data['device_name']) : '';
-                    $tag          = isset($src_data['tag']         ) ? trim($src_data['tag']) : '';
+                    $who_call    = isset($src_data['who_call'])    ? $src_data['who_call']     : 'app';
+                    $id          = isset($src_data['id'])          ? intval($src_data['id'])   : null;
+                    $sid         = isset($src_data['sid'])         ? trim($src_data['sid'])    : '';
+                    $pc_mac      = isset($src_data['pc_mac'])      ? trim($src_data['pc_mac']) : 'web';
+                    $asset_no    = isset($src_data['asset_no'])    ? trim($src_data['asset_no']): '';
+                    $device_name = isset($src_data['device_name']) ? trim($src_data['device_name']) : '';
 
+                    // 檢查必填欄位
                     if (empty($asset_no) || empty($device_name)) {
                         $data = result_message("false", "0x0206", "編輯失敗，必須提供 [asset_no] 與 [device_name] ！", $null_array);
                         echo json_encode($data, JSON_UNESCAPED_UNICODE);
                         return;
                     }
 
-                    
-
                     // 取得 default_device 預設對應配置
                     $def_config   = $default_device_map[$device_name] ?? array();
 
-                    $receive_mode = isset($src_data['receive_mode']) ? $src_data['receive_mode'] : ($def_config['receive_mode'] ?? null);
-                    $device_type  = isset($src_data['device_type'] ) ? $src_data['device_type']  : ($def_config['device_type']  ?? null);
-                    $tag          = isset($src_data['tag']         ) ? $src_data['tag']          : ($def_config['tag']          ?? null);
-                    $port_name    = isset($src_data['port_name']   ) ? $src_data['port_name']    : ($def_config['port_name']    ?? 'NONE');
-                    $baudrate     = isset($src_data['baudrate']    ) ? intval($src_data['baudrate'])  : intval($def_config['baudrate'] ?? 9600);
-                    $data_bits    = isset($src_data['data_bits']   ) ? intval($src_data['data_bits']) : intval($def_config['data_bits'] ?? 8);
-                    $parity       = isset($src_data['parity']      ) ? $src_data['parity']       : ($def_config['parity']       ?? 'NONE');
-                    $stop_bit     = isset($src_data['stop_bit']    ) ? $src_data['stop_bit']     : ($def_config['stop_bit']     ?? '1');
-                    $handshake    = isset($src_data['handshake']   ) ? $src_data['handshake']    : ($def_config['handshake']    ?? 'NONE');
-                    $hk           = isset($src_data['hk']          ) ? $src_data['hk']           : ($def_config['hk']           ?? null);
-                    $status       = isset($src_data['status']      ) ? intval($src_data['status'])  : 1;
-                    $sort_order   = isset($src_data['sort_order']  ) ? intval($src_data['sort_order']): 0;
-                    $remark       = isset($src_data['remark']      ) ? $src_data['remark']       : null;
+                    $device_type  = !empty($src_data['device_type'])  ? trim($src_data['device_type'])  : ($def_config['device_type']  ?? null);
+                    $tag          = !empty($src_data['tag'])          ? trim($src_data['tag'])          : ($def_config['tag']          ?? null);
+                    $receive_mode = isset($src_data['receive_mode']) ? $src_data['receive_mode']            : ($def_config['receive_mode'] ?? null);
+                    $port_name    = isset($src_data['port_name'])    ? $src_data['port_name']               : ($def_config['port_name']    ?? 'NONE');
+                    $baudrate     = isset($src_data['baudrate'])     ? intval($src_data['baudrate'])     : intval($def_config['baudrate'] ?? 9600);
+                    $data_bits    = isset($src_data['data_bits'])    ? intval($src_data['data_bits'])    : intval($def_config['data_bits'] ?? 8);
+                    $parity       = isset($src_data['parity'])       ? $src_data['parity']                  : ($def_config['parity']       ?? 'NONE');
+                    $stop_bit     = isset($src_data['stop_bit'])     ? $src_data['stop_bit']                : ($def_config['stop_bit']     ?? '1');
+                    $handshake    = isset($src_data['handshake'])    ? $src_data['handshake']               : ($def_config['handshake']    ?? 'NONE');
+                    $hk           = isset($src_data['hk'])          ? $src_data['hk']                      : ($def_config['hk']           ?? null);
+                    $status       = isset($src_data['status'])      ? intval($src_data['status'])         : 1;
+                    $sort_order   = isset($src_data['sort_order'])  ? intval($src_data['sort_order'])     : 0;
+                    $remark       = isset($src_data['remark'])      ? $src_data['remark']                  : null;
 
-                    // 檢查 asset_no 是否已存在 (若有傳 device_type 且不為空才一起比對)
-                    $chk_sql = "SELECT * FROM $tableMain WHERE asset_no = ? LIMIT 1";
+                    // 檢查 asset_no 是否已存在
+                    $chk_sql = "SELECT * FROM $tableMain WHERE asset_no = ? OR id = ? LIMIT 1";
                     $chk_stmt = mysqli_prepare($link, $chk_sql);
-                    mysqli_stmt_bind_param($chk_stmt, "s", $asset_no);
+                    mysqli_stmt_bind_param($chk_stmt, "ss", $asset_no, $id);
                     mysqli_stmt_execute($chk_stmt);
                     $chk_res = mysqli_stmt_get_result($chk_stmt);
 
@@ -418,14 +416,13 @@
                         echo json_encode($data, JSON_UNESCAPED_UNICODE);
                         return;
                     } else {
-                        // -----------------------------
-                        // 資料已存在 -> 執行更新 (UPDATE)
-                        // -----------------------------
+                        // 執行更新 (UPDATE)
                         $exist_data = mysqli_fetch_assoc($chk_res);
                         $exist_id   = $exist_data['id'];
-                        $target_sid = !empty($sid) ? $sid : $exist_data['sid'];
+                        $target_sid = (!empty($sid) ? $sid : $exist_data['sid']) ;
                         mysqli_stmt_close($chk_stmt);
 
+                        // echo "資料已存在 -> 執行更新 (UPDATE)\n exist_id :$exist_id, target_sid: $target_sid, asset_no: $asset_no, device_name: $device_name, tag: $tag";
                         $update_sql = "UPDATE $tableMain 
                                         SET sid = ?, pc_mac = ?, asset_no = ?, device_type = ?, device_name = ?, 
                                             receive_mode = ?, tag = ?, port_name = ?, baudrate = ?, data_bits = ?, 
@@ -434,32 +431,47 @@
                                         WHERE id = ?";
                         
                         $up_stmt = mysqli_prepare($link, $update_sql);
-                        // 綁定型態: ssssssssiissssiiii (18 個參數)
                         mysqli_stmt_bind_param($up_stmt, "ssssssssiissssiiii", 
                             $target_sid, $pc_mac, $asset_no, $device_type, $device_name, 
                             $receive_mode, $tag, $port_name, $baudrate, $data_bits, 
                             $parity, $stop_bit, $handshake, $hk, $status, 
                             $sort_order, $remark, $exist_id
                         );
+                        
                         $exec_up = mysqli_stmt_execute($up_stmt);
                         $affected_rows = mysqli_stmt_affected_rows($up_stmt);
+                        $stmt_err = mysqli_stmt_error($up_stmt); // 抓取 Statement 錯誤訊息
                         mysqli_stmt_close($up_stmt);
 
+                        // 3. 判定更新結果 ($exec_up 為 true 且 affected_rows >= 0 即算成功)
                         if ($exec_up && $affected_rows >= 0) {
                             $processed_results[] = ['id' => $exist_id, 'sid' => $target_sid, 'action' => 'UPDATE', 'status' => 'true'];
+                            $data = result_message("true", "0x0200", "更新資料成功", $null_array);
+
+                            // 打包更新後資料寫入 Log
+                            $after_data = array_merge($exist_data, [
+                                'sid' => $target_sid, 'pc_mac' => $pc_mac, 'asset_no' => $asset_no,
+                                'device_type' => $device_type, 'device_name' => $device_name,
+                                'receive_mode' => $receive_mode, 'tag' => $tag, 'port_name' => $port_name,
+                                'baudrate' => $baudrate, 'data_bits' => $data_bits, 'parity' => $parity,
+                                'stop_bit' => $stop_bit, 'handshake' => $handshake, 'hk' => $hk,
+                                'status' => $status, 'sort_order' => $sort_order, 'remark' => $remark
+                            ]);
 
                             writeDeviceLog(
                                 $link, $tableLog, $exist_id, $target_sid, $pc_mac, $asset_no, 
                                 $device_type, $device_name, 'UPDATE', 
-                                ['before' => $exist_data, 'after' => $item], 
+                                ['before' => $exist_data, 'after' => $after_data], 
                                 $member_id, $remote_ip, $who_call . ' 呼叫 api ' . $API_name
                             );
                         } else {
                             $has_error = true;
+                            // 印出確切的 Statement Error
+                            $data = result_message("false", "0x0203", "更新資料失敗: " . $stmt_err, $null_array);
                             $processed_results[] = [
                                 'sid' => $target_sid, 
                                 'status' => 'false', 
-                                'message' => '更新失敗：' . mysqli_error($link)
+                                'message' => '更新失敗：' . $stmt_err
                             ];
                         }
                     }

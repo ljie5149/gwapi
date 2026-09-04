@@ -77,6 +77,14 @@
 
         $header_row = $excel_rows[0];
 
+        // 【新增 1】驗證標頭欄位名稱：必須包含「設備中文名稱」
+        if (gfindStrInArray($header_row, '設備中文名稱') === -1) {
+            $ret_str = "匯入失敗，Excel 缺少必要欄位：「設備中文名稱」！";
+            $db->saveLog($link, $member_id, 'back-end 呼叫api', $caption, '匯入Excel:' . $file_name, $ret_str);
+            echo json_encode(result_message("false", "0x0206", $ret_str, ''), JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
         // 4. 逐列處理資料匯入
         for ($r = 1; $r <= $total_records; $r++) {
             $row_data = $excel_rows[$r];
@@ -89,8 +97,24 @@
                 $cur_device_name = trim((string)$row_data[$dev_name_col_idx]);
             }
 
+            // 【新增 2】驗證設備中文名稱是否為空或不存在於 default_device_map
+            if ($cur_device_name === '') {
+                $fail_cnt++;
+                $fail_list[] = array('row' => $row_num_display, 'reason' => '未填寫設備中文名稱');
+                continue;
+            }
+
+            if (!isset($default_device_map[$cur_device_name])) {
+                $fail_cnt++;
+                $fail_list[] = array(
+                    'row'    => $row_num_display,
+                    'reason' => "設備中文名稱 「{$cur_device_name}」 不存在於預設設備清單 (default_device) 中"
+                );
+                continue;
+            }
+
             // 取得 default_device 預設對應配置
-            $def_config = $default_device_map[$cur_device_name] ?? array();
+            $def_config = $default_device_map[$cur_device_name];
 
             $insert_fields = array();
             $insert_values = array();

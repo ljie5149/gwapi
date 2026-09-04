@@ -223,8 +223,8 @@
                     const res = await response.json();
                     // console.log('載入機構選項:', response);
 
-                    if (res.status === 'true' && res.data && Array.isArray(res.data.data)) {
-                        facilityListCache = res.data.data;
+                    if (res.status === 'true' && Array.isArray(res.data)) {
+                        facilityListCache = res.data;
                     } else {
                         facilityListCache = [];
                     }

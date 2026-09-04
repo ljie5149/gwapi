@@ -27,6 +27,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>離線/雲端管理 - <?= $g_backend_title; ?></title>
     <link href="./css/online_cloud.css" rel="stylesheet">
+    <style>
+        /* 狀態標籤額外補充樣式 */
+        .status-badge.checking {
+            color: #8c8c8c;
+        }
+        .status-badge.online {
+            color: #52c41a;
+        }
+        .status-badge.offline {
+            color: #ff4d4f;
+            font-weight: bold;
+        }
+        .status-badge.offline .status-checkbox {
+            border-color: #ff4d4f;
+            color: #ff4d4f;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
 </head>
 <body>
 
@@ -93,8 +114,8 @@
             <div class="status-row offline-only">
                 <span class="status-label">雲端主機連線狀態</span>
                 <div class="status-badge offline" id="status_cloud_badge">
-                    <span class="status-checkbox" id="status_cloud_icon"></span>
-                    <span id="status_cloud_text">已連線</span>
+                    <span class="status-checkbox" id="status_cloud_icon">✕</span>
+                    <span id="status_cloud_text">未連線</span>
                 </div>
                 <button class="btn-check-status" onclick="checkSingleStatus('cloud')">檢查連線狀態</button>
             </div>
@@ -102,8 +123,8 @@
             <div class="status-row">
                 <span class="status-label">HMS主機連線狀態</span>
                 <div class="status-badge offline" id="status_hms_badge">
-                    <span class="status-checkbox" id="status_hms_icon"></span>
-                    <span id="status_hms_text">已連線</span>
+                    <span class="status-checkbox" id="status_hms_icon">✕</span>
+                    <span id="status_hms_text">未連線</span>
                 </div>
                 <button class="btn-check-status" onclick="checkSingleStatus('hms')">檢查連線狀態</button>
             </div>
@@ -239,7 +260,7 @@
             }
         }
 
-        // 4. 更新 UI 狀態顯示 (控制綠色連線/灰色離線)
+        // 4. 更新 UI 狀態顯示 (控制綠色連線 / 紅色未連線與 ✕ 符號)
         function updateStatusUI(type, isConnected, isChecking = false) {
             const badge = document.getElementById(`status_${type}_badge`);
             const icon = document.getElementById(`status_${type}_icon`);
@@ -250,17 +271,20 @@
             if (isChecking) {
                 badge.className = 'status-badge checking';
                 icon.innerText = '⋯';
-                text.innerText = '已連線';
+                text.innerText = '檢測中...';
+                text.style.color = '';
             } else if (isConnected) {
-                // 連線成功：綠色 + 勾選
+                // 連線成功：綠色 + 勾選 + 「已連線」
                 badge.className = 'status-badge online';
                 icon.innerText = '✓';
                 text.innerText = '已連線';
+                text.style.color = '';
             } else {
-                // 連線失敗/離線：灰色 + 取消勾選 (無勾號)
+                // 連線失敗：顯示紅字「未連線」與 ✕ 符號
                 badge.className = 'status-badge offline';
-                icon.innerText = '';
-                text.innerText = '已連線';
+                icon.innerText = '✕';
+                text.innerText = '未連線';
+                text.style.color = '#ff4d4f';
             }
         }
 

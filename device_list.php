@@ -75,7 +75,7 @@
         <!-- 搜尋與動作按鈕 -->
         <div class="search-row">
             <span class="filter-label">搜尋</span>
-            <input type="text" id="searchInput" class="search-input" placeholder="搜尋序號或設備名稱...">
+            <input type="text" id="searchInput" class="search-input" placeholder="搜尋序號或設備編號...">
             <button class="btn-batch-add" id="openBatchModal">批次新增</button>
             <button class="btn-delete" id="openDeleteModal">刪除</button>
         </div>
@@ -196,6 +196,7 @@
             <div class="modal-close" id="closeEditModal">X</div>
             <h2 class="modal-title">編輯設備序號</h2>
             <input type="hidden" id="editTargetId">
+            <input type="hidden" id="editTargetName">
             <div class="form-group">
                 <label>量測設備</label>
                 <select id="editDeviceType">
@@ -208,7 +209,7 @@
             </div>
             <div class="form-group">
                 <label>設備編號</label>
-                <input type="text" id="editSid" placeholder="請輸入設備序號">
+                <input type="text" id="editTag" placeholder="請輸入設備編號">
             </div>
             <div class="modal-btn-group" style="margin-top: 25px;">
                 <button class="btn-modal-cancel" id="cancelEditBtn">取消</button>
@@ -506,6 +507,7 @@
                 formData.append('table', 'data_device');
 
                 const response = await fetch(IMPORT_API_URL, { method: 'POST', body: formData });
+                // console.log("匯入設備序號清單 => " + response);
                 const result = await response.json();
 
                 clearInterval(progressInterval);
@@ -662,6 +664,19 @@
 
             const editSelect = document.getElementById('editDeviceType');
 
+            // 設定下拉選單的值
+            editSelect.value = target.device_type || '';
+            editSelect.disabled = true; // 將量測設備選單設為禁用
+
+            // 取得帶入的 device_name (優先取 selectedOption 的文字，若無則取 target 中的欄位)
+            const selectedOption = editSelect.options[editSelect.selectedIndex];
+            const deviceName = (selectedOption && selectedOption.value) 
+                ? selectedOption.text 
+                : (target.device_name || '');
+
+            // 將 device_name 寫入隱藏欄位
+            document.getElementById('editTargetName').value = deviceName;
+
             document.getElementById('editTargetId').value = target.id;
             editSelect.value = target.device_type || '';
             
@@ -669,7 +684,7 @@
             editSelect.disabled = true;
 
             document.getElementById('editAssetNo').value = target.asset_no || '';
-            document.getElementById('editSid').value = target.tag || '';
+            document.getElementById('editTag').value = target.tag || '';
 
             document.getElementById('editModal').style.display = 'flex';
         }
@@ -751,31 +766,44 @@
             const id = document.getElementById('editTargetId').value;
             const deviceType = document.getElementById('editDeviceType').value;
             const assetNo = document.getElementById('editAssetNo').value;
-            const tag = document.getElementById('editSid').value;
+            const deviceName = document.getElementById('editTargetName').value;
+            
+            // 修正處：將 'editSid' 改為 HTML 實際存在的欄位 ID 'editTag'
+            const tagInput = document.getElementById('editTag');
+            const tag = tagInput ? tagInput.value : '';
 
+            // console.log("assetNo => " + assetNo, "deviceType => " + deviceType, "deviceName => " + deviceName, "tag => " + tag);
             if (!id) return;
+
+            const payload = {
+                id: parseInt(id),
+                device_type: deviceType,
+                device_name: deviceName,
+                asset_no: assetNo,
+                tag: tag,
+                who_call: 'web'
+            };
+
+            // console.log('json => ' + JSON.stringify(payload));
 
             try {
                 const response = await fetch(DEV_API_URL, {
                     method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sso_token: SSO_TOKEN,
-                        id: parseInt(id),
-                        device_type: deviceType,
-                        asset_no: assetNo,
-                        tag: tag,
-                        who_call: 'device_list'
-                    })
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${SSO_TOKEN}` // 改為 Bearer Token 傳送
+                    },
+                    body: JSON.stringify(payload)
                 });
 
                 const res = await response.json();
+                // console.log("修改設備資料 => ", res);
                 if (res.status === 'true') {
                     alert('設備資料修改成功！');
                     editModal.style.display = 'none';
                     fetchDeviceList();
                 } else {
-                    alert('修改失敗：' + (res.message || '未知錯誤'));
+                    alert('修改失敗：' + (res.responseMessage || '未知錯誤'));
                 }
             } catch (err) {
                 alert('系統連線異常，儲存變更失敗！');

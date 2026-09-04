@@ -83,7 +83,7 @@
         <!-- 通用搜尋列 -->
         <div class="search-bar" id="searchRow" style="display: flex;">
             <span class="filter-label">搜尋</span>
-            <input type="text" id="searchInput" class="search-input" placeholder="請輸入流水號 (sid)、身分證號、姓名或檔案名稱關鍵字...">
+            <input type="text" id="searchInput" class="search-input" placeholder="請輸入檔案名稱關鍵字...">
         </div>
 
         <!-- 資料表格容器 -->
@@ -255,6 +255,8 @@
             const commonTbody = document.getElementById('commonTableBody');
             rawTbody.innerHTML = '<tr><td colspan="5" class="no-data">資料載入中...</td></tr>';
             commonTbody.innerHTML = '<tr><td colspan="9" class="no-data">資料載入中...</td></tr>';
+            
+            clearSelections();
 
             const dateRangeVal = document.getElementById('dateRangeInput').value.trim();
             let startDate = '';
@@ -269,6 +271,9 @@
             const deviceType = document.getElementById('deviceSelect').value;
             const searchKeyword = searchInput.value.trim();
 
+            // 判斷目前是否在「原始資料」頁籤
+            const isRawTabActive = rawTable.style.display !== 'none';
+
             try {
                 const params = new URLSearchParams();
                 params.append('sso_token', SSO_TOKEN);
@@ -276,8 +281,9 @@
                 if (endDate) params.append('end_date', endDate + ' 23:59:59');
                 if (deviceType) params.append('machine_model', deviceType);
 
-                if (searchKeyword) {
-                    params.append('sid', searchKeyword);
+                // 核心修改點：只有在「原始資料」頁籤且有輸入關鍵字時，才傳送 file_name 參數
+                if (isRawTabActive && searchKeyword) {
+                    params.append('file_name', searchKeyword);
                 }
 
                 const response = await fetch(`${MEASURE_API_URL}?${params.toString()}`, { method: 'GET' });
@@ -325,14 +331,19 @@
             let matchCount = 0;
 
             dataList.forEach(row => {
+                // 過濾掉 file_name 為 null、undefined 或空白的資料
+                if (!row.file_data || String(row.file_name).trim() === '') {
+                    return;
+                }
+
                 const dateOnly = row.measure_date ? row.measure_date.split(' ')[0] : '-';
                 const deviceName = row.device_type_zhtw || row.machine_model || row.device_no || '-';
-                const fileName = row.file_name || '-';
+                const fileName = row.file_name;
                 const fileSize = row.file_size ? formatFileSize(row.file_size) : '-';
 
+                // 核心修改：搜尋關鍵字時，僅針對「檔案名稱 (fileName)」進行比對
                 if (keyword) {
-                    const matchText = `${deviceName} ${fileName} ${row.sid || ''}`.toLowerCase();
-                    if (!matchText.includes(keyword)) return;
+                    if (!fileName.toLowerCase().includes(keyword)) return;
                 }
 
                 matchCount++;
@@ -348,87 +359,87 @@
             });
 
             if (matchCount === 0) {
-                rawTbody.innerHTML = '<tr><td colspan="5" class="no-data">查無符合搜尋條件的資料</td></tr>';
+                rawTbody.innerHTML = '<tr><td colspan="5" class="no-data">查無符合條件的原始資料</td></tr>';
             } else {
                 rawTbody.innerHTML = html;
             }
         }
-        
+
         // =========================================================
-        // 4. 渲染動態設備表格 (Dynamic Device Table)
+        // 4. 渲染動態設備表格 (Dynamic Device Table - 共通格式)
         // =========================================================
         function renderCommonTable(dataList, selectedDeviceName) {
             const commonThead = document.getElementById('commonTableHead');
             const commonTbody = document.getElementById('commonTableBody');
             const keyword = searchInput.value.trim().toLowerCase();
 
-            let columns = [];
+            // 通用基本資訊欄位（身份證號、姓名、工號、流水號）
+            const baseColumns = [
+                { 
+                    title: "身份證號", 
+                    getVal: (p, r) => p.id_card || p.person_id || r.tester_identifier || '-' 
+                },
+                { 
+                    title: "姓名", 
+                    getVal: (p, r) => p.name || p.user_name || r.tester_name || '-' 
+                },
+                { 
+                    title: "工號", 
+                    getVal: (p, r) => p.emp_id || p.staff_id || r.tester_work_id || '-' 
+                },
+                { 
+                    title: "流水號", 
+                    getVal: (p, r) => r.measure_no || r.sid || '-' 
+                }
+            ];
+
+            let deviceColumns = [];
             switch (selectedDeviceName) {
                 case "眼壓儀":
-                    columns = [
+                    deviceColumns = [
                         { title: "次數", getVal: (p, r, idx) => idx + 1 },
                         { title: "眼壓值(L)", getVal: (p) => p.LeftEye_mmHg || '-' },
                         { title: "眼壓值(R)", getVal: (p) => p.RightEye_mmHg || '-' },
-                        { title: "健檢時間", getVal: (p, r) => r.measure_date || '-' }
+                        { title: "量測時間", getVal: (p, r) => r.measure_date || '-' }
                     ];
                     break;
 
                 case "身高體重機":
-                    columns = [
+                    deviceColumns = [
                         { title: "次數", getVal: (p, r, idx) => idx + 1 },
                         { title: "身高", getVal: (p) => p.Height_cm || '-' },
                         { title: "體重", getVal: (p) => p.Weight_kg || '-' },
                         { title: "BMI", getVal: (p) => p.BMI || '-' },
-                        { title: "更新時間", getVal: (p, r) => r.measure_date || '-' }
+                        { title: "量測時間", getVal: (p, r) => r.measure_date || '-' }
                     ];
                     break;
 
                 case "血壓計":
-                    columns = [
+                    deviceColumns = [
                         { title: "次數", getVal: (p, r, idx) => idx + 1 },
                         { title: "收縮壓", getVal: (p) => p.SYS || p.sys || p.systolic || '-' },
                         { title: "舒張壓", getVal: (p) => p.DIA || p.dia || p.diastolic || '-' },
                         { title: "脈搏", getVal: (p) => p.Pulse || p.pulse || '-' },
-                        { title: "更新時間", getVal: (p, r) => r.measure_date || '-' }
+                        { title: "量測時間", getVal: (p, r) => r.measure_date || '-' }
                     ];
                     break;
 
                 case "驗光機":
-                    columns = [
+                    deviceColumns = [
                         { title: "次數", getVal: (p, r, idx) => idx + 1 },
                         { title: "屈光度(L)", getVal: (p) => p.LeftEyeTypical?.SPH || '-' },
                         { title: "屈光度(R)", getVal: (p) => p.RightEyeTypical?.SPH || '-' },
                         { title: "閃光度(L)", getVal: (p) => p.LeftEyeTypical?.CYL || '-' },
                         { title: "閃光度(R)", getVal: (p) => p.RightEyeTypical?.CYL || '-' },
-                        { title: "更新時間", getVal: (p, r) => r.measure_date || '-' }
+                        { title: "量測時間", getVal: (p, r) => r.measure_date || '-' }
                     ];
                     break;
 
                 case "體脂計":
                 case "肺功能儀":
                 case "骨密度儀":
-                    columns = [
-                        { 
-                            title: "檔案日期", 
-                            getVal: (p, r) => r.measure_date ? r.measure_date.split(' ')[0] : '-' 
-                        },
-                        { 
-                            title: "量測設備", 
-                            getVal: (p, r) => r.device_type_zhtw || r.machine_model || selectedDeviceName || '-' 
-                        },
-                        { 
-                            title: "檔案名稱", 
-                            getVal: (p, r) => r.file_name || '-' 
-                        },
-                        { 
-                            title: "檔案大小", 
-                            getVal: (p, r) => r.file_size ? formatFileSize(r.file_size) : '-' 
-                        }
-                    ];
-                    break;
-
                 default:
-                    columns = [
+                    deviceColumns = [
                         { 
                             title: "檔案日期", 
                             getVal: (p, r) => r.measure_date ? r.measure_date.split(' ')[0] : '-' 
@@ -449,6 +460,8 @@
                     break;
             }
 
+            // 組合基本欄位與設備專屬欄位
+            const columns = [...baseColumns, ...deviceColumns];
             const totalColumns = columns.length + 1;
 
             if (commonThead) {
@@ -459,7 +472,6 @@
                 headHtml += '</tr>';
                 commonThead.innerHTML = headHtml;
 
-                // 重新繫結全選按鈕事件
                 const selectAllBtn = commonThead.querySelector('.select-all');
                 if (selectAllBtn) {
                     selectAllBtn.addEventListener('change', function() {
@@ -477,6 +489,14 @@
             let matchCount = 0;
 
             dataList.forEach((row, index) => {
+                // 過濾條件：僅顯示 file_data 或 file_name 為空的共通格式資料
+                const hasFileData = row.file_data && String(row.file_data).trim() !== '';
+                const hasFileName = row.file_name && String(row.file_name).trim() !== '';
+
+                if (hasFileData && hasFileName) {
+                    return;
+                }
+
                 let parsedObj = {};
                 try {
                     if (row.up_json_data) {
@@ -500,7 +520,6 @@
 
                 matchCount++;
 
-                // 修正處 4：Checkbox 必須綁定資料主鍵 row.id，供刪除 API 使用
                 bodyHtml += `<tr><td class="checkbox-col"><input type="checkbox" class="row-checkbox" value="${escapeHtml(row.id)}"></td>`;
                 columns.forEach(col => {
                     const val = col.getVal(parsedObj, row, index);
@@ -697,6 +716,15 @@
             btnCommon.className = 'tab-btn inactive';
             rawTable.style.display = 'block';
             commonTable.style.display = 'none';
+            
+            // 1. 動態切換預設提示文字
+            searchInput.placeholder = "請輸入檔案名稱關鍵字...";
+            // 2. 清空輸入框內容
+            searchInput.value = '';
+            
+            // 3. 切換 Tab 時取消勾選並重新載入/繪製資料
+            clearSelections();
+            fetchMeasureData();
         });
 
         btnCommon.addEventListener('click', function() {
@@ -704,6 +732,15 @@
             btnRaw.className = 'tab-btn inactive';
             rawTable.style.display = 'none';
             commonTable.style.display = 'block';
+            
+            // 1. 動態切換預設提示文字
+            searchInput.placeholder = "請輸入流水號、身分證號、姓名...";
+            // 2. 清空輸入框內容
+            searchInput.value = '';
+
+            // 3. 切換 Tab 時取消勾選並重新載入/繪製資料
+            clearSelections();
+            fetchMeasureData();
         });
 
         document.querySelectorAll('.select-all').forEach(selectAll => {
@@ -810,6 +847,14 @@
             await loadDeviceOptions();
             await fetchMeasureData();
         });
+        
+        // 清除所有表格中的 Checkbox 選取狀態
+        function clearSelections() {
+            // 取消全選框的勾選
+            document.querySelectorAll('.select-all').forEach(cb => cb.checked = false);
+            // 取消單列 Checkbox 的勾選
+            document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
+        }
     </script>
 </body>
 </html>
