@@ -5,26 +5,1371 @@ info:
     JTG 系統 API OpenAPI 3.0 規範說明。
     
     ### 🔑 金鑰換取與身份驗證流程
-    1. 換取 Token: 呼叫 POST /JTG_exhanceToken.php，帶入 api_key
+    1. 換取 Token: 呼叫 POST /exhanceToken，帶入 api_key
        * 預設 Key: PRJFy9bRrZZbO2CtpMJN6IcOffu5ODscEp8sknwEoRsIr2kPFOu5ru96ovaJFW2d
-    2. 使用 Token: 後續 API 於 Header 帶入 Authorization: Bearer <sso_token> 或於 Body/Query 帶 sso_token
+    2. 使用 Token: 後續 API 於 Header 帶入 Authorization: Bearer <sso_token> 或於 Query/Body 帶入 sso_token
   version: 1.0.0
 servers:
   - url: https://clinic.healthme.com.tw/gwapi/api
     description: 正式環境
 
-security:
-  - BearerAuth: []
+paths:
+  # ==========================================
+  # 1. Token 交換 API
+  # ==========================================
+  /exhanceToken:
+    post:
+      summary: 使用者驗證與 Token 交換 API (JTG_exhanceToken)
+      description: 傳入 API Key 交換 Bearer SSO Token，供後續 API 身分驗證使用。
+      operationId: exchangeToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - api_key
+              properties:
+                who_call:
+                  type: string
+                  default: app
+                  description: 呼叫來源標示
+                api_key:
+                  type: string
+                  description: 存取 API 之金鑰 (密碼)
+      responses:
+        '200':
+          description: 執行完成，傳回 Token 交換結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "true"
+                  code:
+                    type: string
+                    example: "0x0200"
+                  responseMessage:
+                    type: string
+                    example: "Token 取得成功"
+                  resultData:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      type:
+                        type: string
+                        example: "Bearer"
+                      expires_in:
+                        type: integer
+                        example: 86400
+
+  # ==========================================
+  # 2. 預設設備型號設定 API
+  # ==========================================
+  /default_device:
+    get:
+      summary: 查詢預設設備型號設定資料 (JTG_devselection)
+      operationId: getDefaultDevices
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: sso_token
+          schema:
+            type: string
+          description: SSO Token
+        - in: query
+          name: get_all
+          schema:
+            type: string
+            enum: ["0", "1"]
+            default: "0"
+          description: 是否抓取全資料 (0: 僅查 status=1, 1: 查全部)
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: 設備 ID
+        - in: query
+          name: sid
+          schema:
+            type: string
+          description: 設備 SID
+        - in: query
+          name: device_type
+          schema:
+            type: string
+          description: 設備類型
+        - in: query
+          name: device_name
+          schema:
+            type: string
+          description: 設備名稱 (模糊查詢)
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseListDevice'
+
+    post:
+      summary: 新增或更新預設設備型號設定資料 (批次/單筆, JTG_devselection)
+      operationId: insertDefaultDevice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/DefaultDeviceInput'
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/DefaultDeviceInput'
+      responses:
+        '200':
+          description: 處理完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseBatchResult'
+
+    put:
+      summary: 部分更新預設設備型號設定資料 (PUT)
+      operationId: updateDefaultDevicePut
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefaultDeviceUpdateInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    patch:
+      summary: 部分更新預設設備型號設定資料 (PATCH)
+      operationId: updateDefaultDevicePatch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefaultDeviceUpdateInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    delete:
+      summary: 刪除預設設備型號設定資料
+      operationId: deleteDefaultDevice
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: 目標 ID
+        - in: query
+          name: sid
+          schema:
+            type: string
+          description: 目標 SID
+        - in: query
+          name: device_type
+          schema:
+            type: string
+          description: 目標類型
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                sid:
+                  type: string
+                device_type:
+                  type: string
+                who_call:
+                  type: string
+                  default: app
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+  # ==========================================
+  # 3. 機構資料 API
+  # ==========================================
+  /facility:
+    get:
+      summary: 查詢機構資料 (JTG_facility)
+      operationId: getFacility
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: sso_token
+          schema:
+            type: string
+          description: SSO Token
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: 機構 ID
+        - in: query
+          name: sid
+          schema:
+            type: string
+          description: 機構 SID
+        - in: query
+          name: facility_name
+          schema:
+            type: string
+          description: 機構名稱 (模糊查詢)
+      responses:
+        '200':
+          description: 查詢結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseGeneric'
+
+    post:
+      summary: 新增機構資料 (JTG_facility)
+      operationId: insertFacility
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sso_token:
+                  type: string
+                who_call:
+                  type: string
+                  default: app
+      responses:
+        '200':
+          description: 新增結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseGeneric'
+
+    put:
+      summary: 編輯機構資料 (PUT, JTG_facility)
+      operationId: updateFacilityPut
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sso_token:
+                  type: string
+                who_call:
+                  type: string
+                  default: app
+      responses:
+        '200':
+          description: 編輯結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseGeneric'
+
+    patch:
+      summary: 編輯機構資料 (PATCH, JTG_facility)
+      operationId: updateFacilityPatch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sso_token:
+                  type: string
+                who_call:
+                  type: string
+                  default: app
+      responses:
+        '200':
+          description: 編輯結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseGeneric'
+
+  # ==========================================
+  # 4. 生理量測資料 API (JTG_measure)
+  # ==========================================
+  /measure:
+    get:
+      summary: 查詢生理量測資料 (JTG_measure)
+      description: 支援依 ID, Member ID, 身分證字號, 量測類型, 時間區間等條件查詢與分頁。
+      operationId: getMeasure
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: sso_token
+          schema:
+            type: string
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: 量測記錄 ID
+        - in: query
+          name: member_id
+          schema:
+            type: integer
+          description: 會員系統 ID
+        - in: query
+          name: personal_id
+          schema:
+            type: string
+          description: 會員身分證號碼
+        - in: query
+          name: type
+          schema:
+            type: string
+          description: 量測類型 (如 blood_pressure, blood_sugar, body_weight 等)
+        - in: query
+          name: start_time
+          schema:
+            type: string
+            format: date-time
+          description: 量測開始時間 (YYYY-MM-DD HH:mm:ss)
+        - in: query
+          name: end_time
+          schema:
+            type: string
+            format: date-time
+          description: 量測結束時間 (YYYY-MM-DD HH:mm:ss)
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+          description: 頁碼
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+          description: 每頁筆數
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseListMeasure'
+
+    post:
+      summary: 新增生理量測資料 (JTG_measure)
+      operationId: insertMeasure
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/MeasureInput'
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/MeasureInput'
+      responses:
+        '200':
+          description: 新增成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    put:
+      summary: 更新生理量測資料 (PUT, JTG_measure)
+      operationId: updateMeasurePut
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeasureUpdateInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    patch:
+      summary: 部分更新生理量測資料 (PATCH, JTG_measure)
+      operationId: updateMeasurePatch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeasureUpdateInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    delete:
+      summary: 刪除生理量測資料 (JTG_measure)
+      operationId: deleteMeasure
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: 量測記錄 ID
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                who_call:
+                  type: string
+                  default: app
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+  # ==========================================
+  # 5. 生理量測檔案 API (JTG_measure4file2)
+  # ==========================================
+  /measure4file2:
+    get:
+      summary: 查詢量測關聯檔案 (JTG_measure4file2)
+      description: 查詢心電圖、超音波等量測附件檔案記錄。
+      operationId: getMeasureFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: sso_token
+          schema:
+            type: string
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: 檔案記錄 ID
+        - in: query
+          name: measure_id
+          schema:
+            type: integer
+          description: 關聯之量測記錄 ID
+        - in: query
+          name: member_id
+          schema:
+            type: integer
+          description: 會員系統 ID
+        - in: query
+          name: file_type
+          schema:
+            type: string
+          description: 檔案類型 (如 pdf, png, ecg 等)
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseListMeasureFile'
+
+    post:
+      summary: 新增/上傳量測關聯檔案 (JTG_measure4file)
+      operationId: insertMeasureFile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeasureFileInput'
+      responses:
+        '200':
+          description: 上傳/新增成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    put:
+      summary: 更新量測關聯檔案資訊 (PUT, JTG_measure4file)
+      operationId: updateMeasureFilePut
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeasureFileUpdateInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    patch:
+      summary: 部分更新量測關聯檔案資訊 (PATCH, JTG_measure4file)
+      operationId: updateMeasureFilePatch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeasureFileUpdateInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    delete:
+      summary: 刪除量測關聯檔案記錄 (JTG_measure4file)
+      operationId: deleteMeasureFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: 檔案記錄 ID
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                who_call:
+                  type: string
+                  default: app
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+  # ==========================================
+  # 6. 會員/個案資料 API (JTG_member)
+  # ==========================================
+  /member:
+    get:
+      summary: 查詢會員/個案資料 (JTG_member)
+      operationId: getMember
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: sso_token
+          schema:
+            type: string
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: 會員系統 ID
+        - in: query
+          name: personal_id
+          schema:
+            type: string
+          description: 身分證字號
+        - in: query
+          name: member_name
+          schema:
+            type: string
+          description: 會員姓名 (模糊查詢)
+        - in: query
+          name: mobile
+          schema:
+            type: string
+          description: 手機號碼
+        - in: query
+          name: facility_id
+          schema:
+            type: integer
+          description: 所屬機構 ID
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseListMember'
+
+    post:
+      summary: 新增會員資料 (JTG_member)
+      operationId: insertMember
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberInput'
+      responses:
+        '200':
+          description: 新增成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    put:
+      summary: 更新會員完整資料 (PUT, JTG_member)
+      operationId: updateMemberPut
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberUpdateInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    patch:
+      summary: 部分更新會員資料/重設密碼 (PATCH, JTG_member)
+      operationId: updateMemberPatch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberUpdateInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    delete:
+      summary: 刪除/註銷會員資料 (JTG_member)
+      operationId: deleteMember
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: 會員系統 ID
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                who_call:
+                  type: string
+                  default: app
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+  # ==========================================
+  # 7. 主機與機構設定 API (JTG_hostconfig)
+  # ==========================================
+  /hostconfig:
+    get:
+      summary: 查詢主機/機構設定資料 (JTG_hostconfig)
+      operationId: getHostConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: sso_token
+          schema:
+            type: string
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: 設定檔 ID
+        - in: query
+          name: facility_id
+          schema:
+            type: integer
+          description: 機構 ID
+        - in: query
+          name: host_id
+          schema:
+            type: string
+          description: 主機識別碼/域名
+        - in: query
+          name: config_key
+          schema:
+            type: string
+          description: 設定鍵名
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseListHostConfig'
+
+    post:
+      summary: 新增主機/機構設定 (JTG_hostconfig)
+      operationId: insertHostConfig
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/HostConfigInput'
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/HostConfigInput'
+      responses:
+        '200':
+          description: 新增成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    put:
+      summary: 更新主機/機構設定 (PUT, JTG_hostconfig)
+      operationId: updateHostConfigPut
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostConfigUpdateInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    patch:
+      summary: 部分更新主機/機構設定 (PATCH, JTG_hostconfig)
+      operationId: updateHostConfigPatch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostConfigUpdateInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
+
+    delete:
+      summary: 刪除主機/機構設定 (JTG_hostconfig)
+      operationId: deleteHostConfig
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: 設定檔 ID
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                who_call:
+                  type: string
+                  default: app
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSingleResult'
 
 components:
   securitySchemes:
-    BearerAuth:
+    bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: SSO Token
+      bearerFormat: JWT
+      description: 請於 Header 中傳遞 `Authorization: Bearer <SSO_TOKEN>`
 
   schemas:
-    ApiResponse:
+    # ------------------------------------------
+    # 預設設備 Schemas
+    # ------------------------------------------
+    DefaultDeviceInput:
+      type: object
+      required:
+        - sid
+        - device_type
+        - device_name
+      properties:
+        sso_token:
+          type: string
+        who_call:
+          type: string
+          default: app
+        sid:
+          type: string
+        device_type:
+          type: string
+        device_name:
+          type: string
+        receive_mode:
+          type: string
+          nullable: true
+        tag:
+          type: string
+          nullable: true
+        baudrate:
+          type: integer
+          default: 9600
+        data_bits:
+          type: integer
+          default: 8
+        parity:
+          type: string
+          default: NONE
+        stop_bit:
+          type: string
+          default: "1"
+        handshake:
+          type: string
+          default: NONE
+        hk:
+          type: string
+          nullable: true
+        status:
+          type: integer
+          default: 1
+        sort_order:
+          type: integer
+          default: 0
+        remark:
+          type: string
+          nullable: true
+
+    DefaultDeviceUpdateInput:
+      type: object
+      properties:
+        sso_token:
+          type: string
+        who_call:
+          type: string
+          default: app
+        id:
+          type: integer
+        sid:
+          type: string
+        device_type:
+          type: string
+        device_name:
+          type: string
+        receive_mode:
+          type: string
+        tag:
+          type: string
+        baudrate:
+          type: integer
+        data_bits:
+          type: integer
+        parity:
+          type: string
+        stop_bit:
+          type: string
+        handshake:
+          type: string
+        hk:
+          type: string
+        status:
+          type: integer
+        sort_order:
+          type: integer
+        remark:
+          type: string
+
+    DefaultDeviceEntity:
+      type: object
+      properties:
+        id:
+          type: integer
+        sid:
+          type: string
+        device_type:
+          type: string
+        device_name:
+          type: string
+        receive_mode:
+          type: string
+        tag:
+          type: string
+        baudrate:
+          type: integer
+        data_bits:
+          type: integer
+        parity:
+          type: string
+        stop_bit:
+          type: string
+        handshake:
+          type: string
+        hk:
+          type: string
+        status:
+          type: integer
+        sort_order:
+          type: integer
+        remark:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # ------------------------------------------
+    # 生理量測 (Measure) Schemas
+    # ------------------------------------------
+    MeasureInput:
+      type: object
+      required:
+        - member_id
+        - type
+      properties:
+        sso_token:
+          type: string
+        who_call:
+          type: string
+          default: app
+        member_id:
+          type: integer
+        personal_id:
+          type: string
+        type:
+          type: string
+          description: 量測種類 (如 blood_pressure, blood_sugar, body_weight 等)
+        val1:
+          type: string
+          description: 量測值 1 (如 收縮壓 / 血糖值)
+        val2:
+          type: string
+          description: 量測值 2 (如 舒張壓)
+        val3:
+          type: string
+          description: 量測值 3 (如 脈搏)
+        val4:
+          type: string
+        unit:
+          type: string
+          description: 單位 (如 mmHg, mg/dL, kg)
+        measured_at:
+          type: string
+          format: date-time
+          description: 量測時間
+        device_id:
+          type: string
+          description: 量測設備 ID
+        remark:
+          type: string
+
+    MeasureUpdateInput:
+      type: object
+      required:
+        - id
+      properties:
+        sso_token:
+          type: string
+        who_call:
+          type: string
+          default: app
+        id:
+          type: integer
+        val1:
+          type: string
+        val2:
+          type: string
+        val3:
+          type: string
+        val4:
+          type: string
+        unit:
+          type: string
+        measured_at:
+          type: string
+          format: date-time
+        remark:
+          type: string
+
+    MeasureEntity:
+      type: object
+      properties:
+        id:
+          type: integer
+        member_id:
+          type: integer
+        personal_id:
+          type: string
+        type:
+          type: string
+        val1:
+          type: string
+        val2:
+          type: string
+        val3:
+          type: string
+        val4:
+          type: string
+        unit:
+          type: string
+        measured_at:
+          type: string
+          format: date-time
+        device_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # ------------------------------------------
+    # 生理量測檔案 (Measure4file) Schemas
+    # ------------------------------------------
+    MeasureFileInput:
+      type: object
+      required:
+        - measure_id
+        - file_url
+      properties:
+        sso_token:
+          type: string
+        who_call:
+          type: string
+          default: app
+        measure_id:
+          type: integer
+        member_id:
+          type: integer
+        file_type:
+          type: string
+        file_name:
+          type: string
+        file_url:
+          type: string
+        file_size:
+          type: integer
+        remark:
+          type: string
+
+    MeasureFileUpdateInput:
+      type: object
+      required:
+        - id
+      properties:
+        sso_token:
+          type: string
+        who_call:
+          type: string
+          default: app
+        id:
+          type: integer
+        file_name:
+          type: string
+        file_url:
+          type: string
+        remark:
+          type: string
+
+    MeasureFileEntity:
+      type: object
+      properties:
+        id:
+          type: integer
+        measure_id:
+          type: integer
+        member_id:
+          type: integer
+        file_type:
+          type: string
+        file_name:
+          type: string
+        file_url:
+          type: string
+        file_size:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    # ------------------------------------------
+    # 會員 (Member) Schemas
+    # ------------------------------------------
+    MemberInput:
+      type: object
+      required:
+        - member_name
+        - personal_id
+      properties:
+        sso_token:
+          type: string
+        who_call:
+          type: string
+          default: app
+        facility_id:
+          type: integer
+        member_name:
+          type: string
+        personal_id:
+          type: string
+        gender:
+          type: string
+          enum: [M, F, O]
+        birthday:
+          type: string
+          format: date
+        mobile:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        status:
+          type: integer
+          default: 1
+
+    MemberUpdateInput:
+      type: object
+      required:
+        - id
+      properties:
+        sso_token:
+          type: string
+        who_call:
+          type: string
+          default: app
+        id:
+          type: integer
+        member_name:
+          type: string
+        gender:
+          type: string
+        birthday:
+          type: string
+          format: date
+        mobile:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        status:
+          type: integer
+
+    MemberEntity:
+      type: object
+      properties:
+        id:
+          type: integer
+        facility_id:
+          type: integer
+        member_name:
+          type: string
+        personal_id:
+          type: string
+        gender:
+          type: string
+        birthday:
+          type: string
+          format: date
+        mobile:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        status:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    # ------------------------------------------
+    # 主機設定 (HostConfig) Schemas
+    # ------------------------------------------
+    HostConfigInput:
+      type: object
+      required:
+        - config_key
+        - config_value
+      properties:
+        sso_token:
+          type: string
+        who_call:
+          type: string
+          default: app
+        facility_id:
+          type: integer
+        host_id:
+          type: string
+        config_key:
+          type: string
+        config_value:
+          type: string
+        remark:
+          type: string
+
+    HostConfigUpdateInput:
+      type: object
+      required:
+        - id
+      properties:
+        sso_token:
+          type: string
+        who_call:
+          type: string
+          default: app
+        id:
+          type: integer
+        config_key:
+          type: string
+        config_value:
+          type: string
+        remark:
+          type: string
+
+    HostConfigEntity:
+      type: object
+      properties:
+        id:
+          type: integer
+        facility_id:
+          type: integer
+        host_id:
+          type: string
+        config_key:
+          type: string
+        config_value:
+          type: string
+        remark:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+
+    # ------------------------------------------
+    # 通用回應 (Response) Schemas
+    # ------------------------------------------
+    ApiResponseGeneric:
       type: object
       properties:
         status:
@@ -35,948 +1380,137 @@ components:
           example: "0x0200"
         responseMessage:
           type: string
-          example: "取得 健檢設備資料 成功"
-        data:
+        resultData:
+          type: array
+          items: {}
+
+    ApiResponseListDevice:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "true"
+        code:
+          type: string
+          example: "0x0200"
+        responseMessage:
+          type: string
+          example: "取得 預設設備型號設定資料 成功"
+        resultData:
+          type: array
+          items:
+            $ref: '#/components/schemas/DefaultDeviceEntity'
+
+    ApiResponseListMeasure:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "true"
+        code:
+          type: string
+          example: "0x0200"
+        responseMessage:
+          type: string
+          example: "取得 生理量測資料 成功"
+        resultData:
+          type: array
+          items:
+            $ref: '#/components/schemas/MeasureEntity'
+
+    ApiResponseListMeasureFile:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "true"
+        code:
+          type: string
+          example: "0x0200"
+        responseMessage:
+          type: string
+          example: "取得 量測檔案資料 成功"
+        resultData:
+          type: array
+          items:
+            $ref: '#/components/schemas/MeasureFileEntity'
+
+    ApiResponseListMember:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "true"
+        code:
+          type: string
+          example: "0x0200"
+        responseMessage:
+          type: string
+          example: "取得 會員資料 成功"
+        resultData:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberEntity'
+
+    ApiResponseListHostConfig:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "true"
+        code:
+          type: string
+          example: "0x0200"
+        responseMessage:
+          type: string
+          example: "取得 主機設定資料 成功"
+        resultData:
+          type: array
+          items:
+            $ref: '#/components/schemas/HostConfigEntity'
+
+    ApiResponseSingleResult:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "true"
+        code:
+          type: string
+          example: "0x0200"
+        responseMessage:
+          type: string
+          example: "處理成功"
+        resultData:
           type: object
+          properties:
+            id:
+              type: integer
 
-    Device:
+    ApiResponseBatchResult:
       type: object
       properties:
-        id:
-          type: integer
-        sid:
-          type: string
-        pc_mac:
-          type: string
-          nullable: true
-        asset_no:
-          type: string
-        device_type:
-          type: string
-        device_name:
-          type: string
-        receive_mode:
-          type: string
-          nullable: true
-        tag:
-          type: string
-          nullable: true
-        port_name:
-          type: string
-          default: "NONE"
-        baudrate:
-          type: integer
-          default: 9600
-        data_bits:
-          type: integer
-          default: 8
-        parity:
-          type: string
-          default: "NONE"
-        stop_bit:
-          type: string
-          default: "1"
-        handshake:
-          type: string
-          default: "NONE"
-        hk:
-          type: string
-          nullable: true
         status:
-          type: integer
-          default: 1
-        sort_order:
-          type: integer
-          default: 0
-        remark:
           type: string
-          nullable: true
-        created_at:
+          example: "true"
+        code:
           type: string
-          format: date-time
-        updated_at:
+          example: "0x0200"
+        responseMessage:
           type: string
-          format: date-time
-
-    DefaultDevice:
-      type: object
-      properties:
-        id:
-          type: integer
-        sid:
-          type: string
-        device_type:
-          type: string
-        device_name:
-          type: string
-        receive_mode:
-          type: string
-          nullable: true
-        tag:
-          type: string
-          nullable: true
-        baudrate:
-          type: integer
-          default: 9600
-        data_bits:
-          type: integer
-          default: 8
-        parity:
-          type: string
-          default: "NONE"
-        stop_bit:
-          type: string
-          default: "1"
-        handshake:
-          type: string
-          default: "NONE"
-        hk:
-          type: string
-          nullable: true
-        status:
-          type: integer
-          default: 1
-        sort_order:
-          type: integer
-          default: 0
-        remark:
-          type: string
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    Facility:
-      type: object
-      properties:
-        id:
-          type: integer
-        facility_no:
-          type: string
-        facility_name:
-          type: string
-        status:
-          type: integer
-          default: 1
-        remark:
-          type: string
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    ApiConfig:
-      type: object
-      properties:
-        id:
-          type: integer
-        sid:
-          type: string
-        pc_id:
-          type: integer
-        config_key:
-          type: string
-        config_value:
-          type: string
-        description:
-          type: string
-          nullable: true
-        status:
-          type: integer
-          default: 1
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-security:
-  - BearerAuth: []
-
-paths:
-  /api/JTG_exhancetoken:
-    post:
-      summary: Token 交換 (JTG_exhanceToken)
-      description: 驗證 API Key 並取得 SSO Token
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - api_key
-              properties:
-                api_key:
-                  type: string
-                  description: API 密碼 / 金鑰
-                who_call:
-                  type: string
-                  default: app
-      responses:
-        '200':
-          description: 成功取得 Token
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-
-  /api/JTG_device:
-    get:
-      summary: 查詢健檢設備資料 (JTG_devselection)
-      parameters:
-        - name: get_all
-          in: query
-          schema:
-            type: string
-            default: "0"
-        - name: id
-          in: query
-          schema:
-            type: integer
-        - name: sid
-          in: query
-          schema:
-            type: string
-        - name: pc_mac
-          in: query
-          schema:
-            type: string
-        - name: asset_no
-          in: query
-          schema:
-            type: string
-        - name: device_type
-          in: query
-          schema:
-            type: string
-        - name: device_name
-          in: query
-          schema:
-            type: string
-        - name: sso_token
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: 取得健檢設備資料成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-
-    post:
-      summary: 新增或更新健檢設備資料 (JTG_devselection)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - sid
-                - asset_no
-                - device_type
-                - device_name
-              properties:
-                sid:
-                  type: string
-                asset_no:
-                  type: string
-                device_type:
-                  type: string
-                device_name:
-                  type: string
-                pc_mac:
-                  type: string
-                receive_mode:
-                  type: string
-                tag:
-                  type: string
-                port_name:
-                  type: string
-                  default: "NONE"
-                baudrate:
-                  type: integer
-                  default: 9600
-                data_bits:
-                  type: integer
-                  default: 8
-                parity:
-                  type: string
-                  default: "NONE"
-                stop_bit:
-                  type: string
-                  default: "1"
-                handshake:
-                  type: string
-                  default: "NONE"
-                hk:
-                  type: string
-                status:
-                  type: integer
-                  default: 1
-                sort_order:
-                  type: integer
-                  default: 0
-                remark:
-                  type: string
-                who_call:
-                  type: string
-                  default: "app"
-      responses:
-        '200':
-          description: 處理健檢設備資料成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-
-    patch:
-      summary: 編輯健檢設備資料 (JTG_devselection)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                sid:
-                  type: string
-                device_type:
-                  type: string
-                device_name:
-                  type: string
-                status:
-                  type: integer
-      responses:
-        '200':
-          description: 更新健檢設備資料成功
-
-    delete:
-      summary: 刪除健檢設備資料 (JTG_devselection)
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                sid:
-                  type: string
-                device_type:
-                  type: string
-      responses:
-        '200':
-          description: 刪除健檢設備資料成功
-
-  /api/JTG_devselection:
-    get:
-      summary: 查詢預設設備型號設定資料 (JTG_devselection)
-      parameters:
-        - name: get_all
-          in: query
-          schema:
-            type: string
-            default: "0"
-        - name: id
-          in: query
-          schema:
-            type: integer
-        - name: sid
-          in: query
-          schema:
-            type: string
-        - name: device_type
-          in: query
-          schema:
-            type: string
-        - name: device_name
-          in: query
-          schema:
-            type: string
-        - name: sso_token
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: 取得預設設備型號設定資料成功
-
-    post:
-      summary: 新增或更新預設設備型號 (JTG_devselection)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - sid
-                - device_type
-                - device_name
-              properties:
-                sid:
-                  type: string
-                device_type:
-                  type: string
-                device_name:
-                  type: string
-                receive_mode:
-                  type: string
-                tag:
-                  type: string
-                baudrate:
-                  type: integer
-                  default: 9600
-                data_bits:
-                  type: integer
-                  default: 8
-                parity:
-                  type: string
-                  default: "NONE"
-                stop_bit:
-                  type: string
-                  default: "1"
-                handshake:
-                  type: string
-                  default: "NONE"
-                hk:
-                  type: string
-                status:
-                  type: integer
-                  default: 1
-                sort_order:
-                  type: integer
-                  default: 0
-                remark:
-                  type: string
-                who_call:
-                  type: string
-                  default: "app"
-      responses:
-        '200':
-          description: 處理預設設備型號成功
-
-    patch:
-      summary: 部分更新預設設備型號 (JTG_devselection)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                sid:
-                  type: string
-                device_type:
-                  type: string
-                device_name:
-                  type: string
-      responses:
-        '200':
-          description: 更新預設設備型號成功
-
-    delete:
-      summary: 刪除預設設備型號 (JTG_devselection)
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                sid:
-                  type: string
-                device_type:
-                  type: string
-      responses:
-        '200':
-          description: 刪除預設設備型號成功
-
-  /api/JTG_facility:
-    get:
-      summary: 查詢機構資料 (JTG_facility)
-      parameters:
-        - name: get_all
-          in: query
-          schema:
-            type: string
-            default: "0"
-        - name: id
-          in: query
-          schema:
-            type: integer
-        - name: facility_no
-          in: query
-          schema:
-            type: string
-        - name: facility_name
-          in: query
-          schema:
-            type: string
-        - name: sso_token
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: 取得機構資料成功
-
-    post:
-      summary: 新增或更新機構資料 (JTG_facility)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - facility_no
-                - facility_name
-              properties:
-                facility_no:
-                  type: string
-                facility_name:
-                  type: string
-                status:
-                  type: integer
-                  default: 1
-                remark:
-                  type: string
-                who_call:
-                  type: string
-                  default: "app"
-      responses:
-        '200':
-          description: 處理機構資料成功
-
-    patch:
-      summary: 編輯機構資料 (JTG_facility)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                facility_no:
-                  type: string
-                facility_name:
-                  type: string
-                status:
-                  type: integer
-                remark:
-                  type: string
-      responses:
-        '200':
-          description: 更新機構資料成功
-
-  /api/JTG_hostconfig:
-    get:
-      summary: 查詢 API 系統設定資料 (JTG_hostconfig)
-      parameters:
-        - name: get_all
-          in: query
-          schema:
-            type: string
-            default: "0"
-        - name: id
-          in: query
-          schema:
-            type: integer
-        - name: sid
-          in: query
-          schema:
-            type: string
-        - name: pc_id
-          in: query
-          schema:
-            type: integer
-        - name: config_key
-          in: query
-          schema:
-            type: string
-        - name: sso_token
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: 取得 API 系統設定成功
-
-    post:
-      summary: 新增或更新 API 系統設定資料 (JTG_hostconfig)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - sid
-                - pc_id
-                - config_key
-                - config_value
-              properties:
-                sid:
-                  type: string
-                pc_id:
-                  type: integer
-                config_key:
-                  type: string
-                config_value:
-                  type: string
-                description:
-                  type: string
-                status:
-                  type: integer
-                  default: 1
-                who_call:
-                  type: string
-                  default: "app"
-      responses:
-        '200':
-          description: 處理 API 系統設定成功
-
-    patch:
-      summary: 部分更新 API 系統設定資料 (JTG_hostconfig)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                sid:
-                  type: string
-                config_key:
-                  type: string
-                config_value:
-                  type: string
-                pc_id:
-                  type: integer
-                description:
-                  type: string
-                status:
-                  type: integer
-      responses:
-        '200':
-          description: 更新 API 系統設定成功
-
-    delete:
-      summary: 刪除 API 系統設定資料 (JTG_hostconfig)
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                sid:
-                  type: string
-                config_key:
-                  type: string
-      responses:
-        '200':
-          description: 刪除 API 系統設定成功
-
-  /api/JTG_measure.php:
-    get:
-      summary: 查詢健檢量測資料
-      parameters:
-        - name: Authorization
-          in: header
-          schema:
-            type: string
-          example: Bearer {token}
-        - name: id
-          in: query
-          schema:
-            type: integer
-        - name: sid
-          in: query
-          schema:
-            type: string
-        - name: facility_id
-          in: query
-          schema:
-            type: integer
-        - name: measure_no
-          in: query
-          schema:
-            type: string
-        - name: device_no
-          in: query
-          schema:
-            type: string
-        - name: machine_model
-          in: query
-          schema:
-            type: string
-        - name: start_date
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: end_date
-          in: query
-          schema:
-            type: string
-            format: date
-      responses:
-        '200':
-          description: 成功取得量測資料
-
-    post:
-      summary: 新增或批次更新量測資料 (支援檔案上傳)
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                sso_token:
-                  type: string
-                sid:
-                  type: string
-                facility_id:
-                  type: integer
-                measure_no:
-                  type: string
-                device_no:
-                  type: string
-                machine_model:
-                  type: string
-                json_data:
-                  type: string
-                raw_data:
-                  type: string
-                measure_date:
-                  type: string
-                  format: date-time
-                file_data:
-                  type: string
-                  format: binary
-          application/json:
-            schema:
-              type: object
-              required: [sid, facility_id, measure_no, device_no, machine_model]
-              properties:
-                sso_token:
-                  type: string
-                sid:
-                  type: string
-                facility_id:
-                  type: integer
-                measure_no:
-                  type: string
-                device_no:
-                  type: string
-                machine_model:
-                  type: string
-                json_data:
-                  type: string
-                raw_data:
-                  type: string
-                measure_date:
-                  type: string
-                  format: date-time
-      responses:
-        '200':
-          description: 處理量測資料成功
-
-    patch:
-      summary: 編輯量測資料
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                sid:
-                  type: string
-                facility_id:
-                  type: integer
-                measure_no:
-                  type: string
-                device_no:
-                  type: string
-                machine_model:
-                  type: string
-                remark:
-                  type: string
-      responses:
-        '200':
-          description: 更新成功
-
-    delete:
-      summary: 刪除量測資料
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                sid:
-                  type: string
-      responses:
-        '200':
-          description: 刪除成功
-
-  /api/JTG_member.php:
-    get:
-      summary: 查詢會員資料
-      parameters:
-        - name: Authorization
-          in: header
-          schema:
-            type: string
-        - name: get_all
-          in: query
-          schema:
-            type: string
-            enum: ['0', '1']
-            default: '0'
-        - name: id
-          in: query
-          schema:
-            type: integer
-        - name: sid
-          in: query
-          schema:
-            type: string
-        - name: account
-          in: query
-          schema:
-            type: string
-        - name: member_name
-          in: query
-          schema:
-            type: string
-        - name: facility_id
-          in: query
-          schema:
-            type: integer
-        - name: role
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: 成功取得會員資料
-
-    post:
-      summary: 新增或更新會員資料
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [sid, account, member_name, facility_id, role]
-              properties:
-                sso_token:
-                  type: string
-                sid:
-                  type: string
-                account:
-                  type: string
-                password:
-                  type: string
-                  format: password
-                member_name:
-                  type: string
-                facility_id:
-                  type: integer
-                role:
-                  type: string
-                email:
-                  type: string
-                phone:
-                  type: string
-                status:
-                  type: integer
-                  enum: [0, 1]
-      responses:
-        '200':
-          description: 處理會員資料成功
-
-    patch:
-      summary: 編輯會員資料
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                sid:
-                  type: string
-                account:
-                  type: string
-                password:
-                  type: string
-                  format: password
-                member_name:
-                  type: string
-                facility_id:
-                  type: integer
-                role:
-                  type: string
-                email:
-                  type: string
-                phone:
-                  type: string
-                status:
-                  type: integer
-      responses:
-        '200':
-          description: 更新成功
-
-    delete:
-      summary: 刪除會員資料
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                sid:
-                  type: string
-                account:
-                  type: string
-      responses:
-        '200':
-          description: 刪除成功
+          example: "批次處理成功"
+        resultData:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              sid:
+                type: string
+              action:
+                type: string
+                enum: [INSERT, UPDATE]
+              status:
+                type: string
+                example: "true"
