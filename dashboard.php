@@ -65,7 +65,7 @@
             <span class="filter-label">日期範圍</span>
             <div class="date-input-container">
                 <input type="text" id="dateRangeInput" placeholder="請選擇起迄日期" readonly>
-                <span>📅</span>
+                <!-- <span>📅</span> -->
             </div>
 
             <span class="filter-label" style="margin-left: 15px;">量測設備</span>

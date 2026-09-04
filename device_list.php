@@ -68,7 +68,7 @@
             <span class="filter-label" style="margin-left: 15px;">更新日期</span>
             <div class="date-input-container">
                 <input type="text" id="dateRangeInput" placeholder="請選擇起迄日期" readonly>
-                <span>📅</span>
+                <!-- <span>📅</span> -->
             </div>
         </div>
 
