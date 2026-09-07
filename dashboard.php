@@ -190,9 +190,11 @@
         const SSO_TOKEN = '<?= htmlspecialchars($sso_token); ?>';
 
         let currentMeasureData = []; 
+        let filterMeasureData = []; 
         let debounceTimer = null;
         let pendingDeleteBoxes = []; 
         let pendingDownloadData = []; 
+        let curTab = "Raw";
 
         const btnRaw = document.getElementById('btnRaw');
         const btnCommon = document.getElementById('btnCommon');
@@ -295,7 +297,7 @@
                     currentMeasureData = [];
                 }
 
-                renderTables();
+                renderTables(curTab);
             } catch (err) {
                 console.error('取得量測資料失敗:', err);
                 rawTbody.innerHTML = '<tr><td colspan="5" class="no-data">載入失敗，請重試</td></tr>';
@@ -304,7 +306,27 @@
         }
 
         // 重新繪製所有表格
-        function renderTables() {
+        function renderTables(cur_tab) {
+            if (cur_tab == "Raw") {
+                filterMeasureData = currentMeasureData.filter(row => {
+                                                                const hasData = Boolean(row.file_data);
+                                                                const hasValidFileName = row.file_name && String(row.file_name).trim() !== '';
+                                                                const hasValidFileSize = row.file_size > 0;
+
+                                                                // 兩者皆須存在才保留
+                                                                return hasData && hasValidFileName && hasValidFileSize;
+                                                            });
+            } else {
+                filterMeasureData = currentMeasureData.filter(row => {
+                                                                const hasData = Boolean(row.file_data);
+                                                                const hasValidFileName = row.file_name && String(row.file_name).trim() !== '';
+                                                                const hasValidFileSize = row.file_size > 0;
+
+                                                                // 兩者皆須存在才保留
+                                                                return !hasValidFileSize;
+                                                            });
+            }
+            // console.log(filterMeasureData);
             renderRawTable(currentMeasureData);
             
             // 修正處 3：抓取 Select 目前選中的設備中文名稱傳給 renderCommonTable
@@ -722,6 +744,8 @@
             // 2. 清空輸入框內容
             searchInput.value = '';
             
+            curTab = "Raw";
+
             // 3. 切換 Tab 時取消勾選並重新載入/繪製資料
             clearSelections();
             fetchMeasureData();
@@ -737,6 +761,8 @@
             searchInput.placeholder = "請輸入流水號、身分證號、姓名...";
             // 2. 清空輸入框內容
             searchInput.value = '';
+            
+            curTab = "Common";
 
             // 3. 切換 Tab 時取消勾選並重新載入/繪製資料
             clearSelections();
@@ -777,7 +803,7 @@
                 pendingDownloadData = currentMeasureData.filter(item => selectedIds.includes(String(item.id)));
                 downloadModalDesc.textContent = `您已勾選 ${pendingDownloadData.length} 筆資料，準備匯出。`;
             } else {
-                pendingDownloadData = currentMeasureData;
+                pendingDownloadData = filterMeasureData;
                 downloadModalDesc.textContent = `目前未勾選特定資料，將為您匯出頁面上全部 ${pendingDownloadData.length} 筆資料。`;
             }
 
