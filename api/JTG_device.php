@@ -487,11 +487,18 @@
                     $device_type  = isset($src_data['device_type'] ) ? trim($src_data['device_type']) : '';
                     $device_name  = isset($src_data['device_name'] ) ? trim($src_data['device_name']) : '';
                     $device_name  = isset($src_data['device_name'] ) ? trim($src_data['device_name']) : '';
+                    $id       = isset($src_data['id'        ]) && is_numeric($src_data['id']) ? intval($src_data['id']) : 0;
                     
-                    if (empty($asset_no) || empty($device_name)) {
+                    if ($id <= 0 && (empty($asset_no) || empty($device_name))) {
                         $data = result_message("false", "0x0206", "刪除失敗，必須提供 [asset_no] 與 [device_name]！", $null_array);
                         echo json_encode($data, JSON_UNESCAPED_UNICODE);
                         return;
+                    }
+
+                    if ($id > 0) {
+                        $chk_sql = "SELECT * FROM `$tableMain` WHERE id = ? LIMIT 1";
+                        $chk_stmt = mysqli_prepare($link, $chk_sql);
+                        mysqli_stmt_bind_param($chk_stmt, "i", $id);
                     }
 
                     // 檢查目標是否存在
@@ -516,9 +523,9 @@
                     mysqli_stmt_close($chk_stmt);
 
                     // 執行刪除
-                    $del_sql = "DELETE FROM $tableMain WHERE asset_no = ?";
+                    $del_sql = "DELETE FROM $tableMain WHERE id = ?";
                     $del_stmt = mysqli_prepare($link, $del_sql);
-                    mysqli_stmt_bind_param($del_stmt, "s", $asset_no);
+                    mysqli_stmt_bind_param($del_stmt, "i", $target_id);
                     $exec_del = mysqli_stmt_execute($del_stmt);
                     $affected_rows = mysqli_stmt_affected_rows($del_stmt);
                     mysqli_stmt_close($del_stmt);

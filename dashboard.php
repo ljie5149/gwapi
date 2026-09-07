@@ -128,11 +128,7 @@
     </main>
 
     <!-- 分頁區塊 -->
-    <footer class="pagination">
-        <span class="page-link disabled">&larr; Previous</span>
-        <a href="#" class="page-link active">1</a>
-        <a href="#" class="page-link">Next &rarr;</a>
-    </footer>
+    <footer class="pagination" id="pagination"></footer>
 
     <!-- 下載確認 Modal 對話方塊 -->
     <div class="modal-overlay" id="downloadModal" style="display: none;">
@@ -195,6 +191,10 @@
         let pendingDeleteBoxes = []; 
         let pendingDownloadData = []; 
         let curTab = "Raw";
+        
+        // --- 新增分頁相關變數 ---
+        let currentPage = 1;        // 當前頁碼
+        const PAGE_SIZE = 10;       // 每頁顯示 10 筆
 
         const btnRaw = document.getElementById('btnRaw');
         const btnCommon = document.getElementById('btnCommon');
@@ -346,29 +346,35 @@
 
             if (!dataList || dataList.length === 0) {
                 rawTbody.innerHTML = '<tr><td colspan="5" class="no-data">查無原始資料</td></tr>';
+                renderPagination(0);
                 return;
             }
 
+            // 1. 關鍵字過濾
+            const filteredList = dataList.filter(row => {
+                if (!row.file_data || String(row.file_name).trim() === '') return false;
+                const fileName = row.file_name || '';
+                if (keyword && !fileName.toLowerCase().includes(keyword)) return false;
+                return true;
+            });
+
+            if (filteredList.length === 0) {
+                rawTbody.innerHTML = '<tr><td colspan="5" class="no-data">查無符合條件的原始資料</td></tr>';
+                renderPagination(0);
+                return;
+            }
+
+            // 2. 分頁裁切 (每頁 10 筆)
+            const startIndex = (currentPage - 1) * PAGE_SIZE;
+            const paginatedList = filteredList.slice(startIndex, startIndex + PAGE_SIZE);
+
             let html = '';
-            let matchCount = 0;
-
-            dataList.forEach(row => {
-                // 過濾掉 file_name 為 null、undefined 或空白的資料
-                if (!row.file_data || String(row.file_name).trim() === '') {
-                    return;
-                }
-
+            paginatedList.forEach(row => {
                 const dateOnly = row.measure_date ? row.measure_date.split(' ')[0] : '-';
                 const deviceName = row.device_type_zhtw || row.machine_model || row.device_no || '-';
                 const fileName = row.file_name;
                 const fileSize = row.file_size ? formatFileSize(row.file_size) : '-';
 
-                // 核心修改：搜尋關鍵字時，僅針對「檔案名稱 (fileName)」進行比對
-                if (keyword) {
-                    if (!fileName.toLowerCase().includes(keyword)) return;
-                }
-
-                matchCount++;
                 html += `
                     <tr>
                         <td class="checkbox-col"><input type="checkbox" class="row-checkbox" value="${escapeHtml(row.id)}"></td>
@@ -379,12 +385,13 @@
                     </tr>
                 `;
             });
+            // console.log(paginatedList);
 
-            if (matchCount === 0) {
-                rawTbody.innerHTML = '<tr><td colspan="5" class="no-data">查無符合條件的原始資料</td></tr>';
-            } else {
-                rawTbody.innerHTML = html;
-            }
+            rawTbody.innerHTML = html;
+            // console.log(filteredList);
+
+            // 3. 渲染底部分頁列
+            if (curTab == "Raw") renderPagination(filteredList.length);
         }
 
         // =========================================================
@@ -395,24 +402,11 @@
             const commonTbody = document.getElementById('commonTableBody');
             const keyword = searchInput.value.trim().toLowerCase();
 
-            // 通用基本資訊欄位（身份證號、姓名、工號、流水號）
             const baseColumns = [
-                { 
-                    title: "身份證號", 
-                    getVal: (p, r) => p.id_card || p.person_id || r.tester_identifier || '-' 
-                },
-                { 
-                    title: "姓名", 
-                    getVal: (p, r) => p.name || p.user_name || r.tester_name || '-' 
-                },
-                { 
-                    title: "工號", 
-                    getVal: (p, r) => p.emp_id || p.staff_id || r.tester_work_id || '-' 
-                },
-                { 
-                    title: "流水號", 
-                    getVal: (p, r) => r.measure_no || r.sid || '-' 
-                }
+                { title: "身份證號", getVal: (p, r) => p.id_card || p.person_id || r.tester_identifier || '-' },
+                { title: "姓名", getVal: (p, r) => p.name || p.user_name || r.tester_name || '-' },
+                { title: "工號", getVal: (p, r) => p.emp_id || p.staff_id || r.tester_work_id || '-' },
+                { title: "流水號", getVal: (p, r) => r.measure_no || r.sid || '-' }
             ];
 
             let deviceColumns = [];
@@ -425,7 +419,6 @@
                         { title: "量測時間", getVal: (p, r) => r.measure_date || '-' }
                     ];
                     break;
-
                 case "身高體重機":
                     deviceColumns = [
                         { title: "次數", getVal: (p, r, idx) => idx + 1 },
@@ -435,7 +428,6 @@
                         { title: "量測時間", getVal: (p, r) => r.measure_date || '-' }
                     ];
                     break;
-
                 case "血壓計":
                     deviceColumns = [
                         { title: "次數", getVal: (p, r, idx) => idx + 1 },
@@ -445,7 +437,6 @@
                         { title: "量測時間", getVal: (p, r) => r.measure_date || '-' }
                     ];
                     break;
-
                 case "驗光機":
                     deviceColumns = [
                         { title: "次數", getVal: (p, r, idx) => idx + 1 },
@@ -456,33 +447,16 @@
                         { title: "量測時間", getVal: (p, r) => r.measure_date || '-' }
                     ];
                     break;
-
-                case "體脂計":
-                case "肺功能儀":
-                case "骨密度儀":
                 default:
                     deviceColumns = [
-                        { 
-                            title: "檔案日期", 
-                            getVal: (p, r) => r.measure_date ? r.measure_date.split(' ')[0] : '-' 
-                        },
-                        { 
-                            title: "量測設備", 
-                            getVal: (p, r) => r.device_type_zhtw || r.machine_model || selectedDeviceName || '-' 
-                        },
-                        { 
-                            title: "檔案名稱", 
-                            getVal: (p, r) => r.file_name || '-' 
-                        },
-                        { 
-                            title: "檔案大小", 
-                            getVal: (p, r) => r.file_size ? formatFileSize(r.file_size) : '-' 
-                        }
+                        { title: "檔案日期", getVal: (p, r) => r.measure_date ? r.measure_date.split(' ')[0] : '-' },
+                        { title: "量測設備", getVal: (p, r) => r.device_type_zhtw || r.machine_model || selectedDeviceName || '-' },
+                        { title: "檔案名稱", getVal: (p, r) => r.file_name || '-' },
+                        { title: "檔案大小", getVal: (p, r) => r.file_size ? formatFileSize(r.file_size) : '-' }
                     ];
                     break;
             }
 
-            // 組合基本欄位與設備專屬欄位
             const columns = [...baseColumns, ...deviceColumns];
             const totalColumns = columns.length + 1;
 
@@ -504,20 +478,15 @@
 
             if (!dataList || dataList.length === 0) {
                 commonTbody.innerHTML = `<tr><td colspan="${totalColumns}" class="no-data">查無共通格式資料</td></tr>`;
+                renderPagination(0);
                 return;
             }
 
-            let bodyHtml = '';
-            let matchCount = 0;
-
-            dataList.forEach((row, index) => {
-                // 過濾條件：僅顯示 file_data 或 file_name 為空的共通格式資料
+            // 1. 關鍵字與條件過濾
+            const filteredList = dataList.filter(row => {
                 const hasFileData = row.file_data && String(row.file_data).trim() !== '';
                 const hasFileName = row.file_name && String(row.file_name).trim() !== '';
-
-                if (hasFileData && hasFileName) {
-                    return;
-                }
+                if (hasFileData && hasFileName) return false;
 
                 let parsedObj = {};
                 try {
@@ -526,9 +495,7 @@
                     } else if (row.json_data) {
                         parsedObj = typeof row.json_data === 'string' ? JSON.parse(row.json_data) : row.json_data;
                     }
-                } catch (e) {
-                    parsedObj = {};
-                }
+                } catch (e) { parsedObj = {}; }
 
                 if (keyword) {
                     const idCard = parsedObj.id_card || parsedObj.person_id || row.tester_identifier || '';
@@ -536,25 +503,46 @@
                     const empId = parsedObj.emp_id || parsedObj.staff_id || row.tester_work_id || '';
                     const sid = row.sid || row.measure_no || '';
                     const matchText = `${idCard} ${name} ${empId} ${sid}`.toLowerCase();
-
-                    if (!matchText.includes(keyword)) return;
+                    if (!matchText.includes(keyword)) return false;
                 }
 
-                matchCount++;
+                return true;
+            });
 
+            if (filteredList.length === 0) {
+                commonTbody.innerHTML = `<tr><td colspan="${totalColumns}" class="no-data">查無符合搜尋條件的資料</td></tr>`;
+                renderPagination(0);
+                return;
+            }
+
+            // 2. 分頁裁切 (每頁 10 筆)
+            const startIndex = (currentPage - 1) * PAGE_SIZE;
+            const paginatedList = filteredList.slice(startIndex, startIndex + PAGE_SIZE);
+
+            let bodyHtml = '';
+            paginatedList.forEach((row, index) => {
+                let parsedObj = {};
+                try {
+                    if (row.up_json_data) {
+                        parsedObj = typeof row.up_json_data === 'string' ? JSON.parse(row.up_json_data) : row.up_json_data;
+                    } else if (row.json_data) {
+                        parsedObj = typeof row.json_data === 'string' ? JSON.parse(row.json_data) : row.json_data;
+                    }
+                } catch (e) { parsedObj = {}; }
+
+                const actualIndex = startIndex + index;
                 bodyHtml += `<tr><td class="checkbox-col"><input type="checkbox" class="row-checkbox" value="${escapeHtml(row.id)}"></td>`;
                 columns.forEach(col => {
-                    const val = col.getVal(parsedObj, row, index);
+                    const val = col.getVal(parsedObj, row, actualIndex);
                     bodyHtml += `<td>${escapeHtml(String(val))}</td>`;
                 });
                 bodyHtml += '</tr>';
             });
 
-            if (matchCount === 0) {
-                commonTbody.innerHTML = `<tr><td colspan="${totalColumns}" class="no-data">查無符合搜尋條件的資料</td></tr>`;
-            } else {
-                commonTbody.innerHTML = bodyHtml;
-            }
+            commonTbody.innerHTML = bodyHtml;
+
+            // 3. 渲染底部分頁列
+            if (curTab == "Common") renderPagination(filteredList.length);
         }
 
         // =========================================================
@@ -745,6 +733,7 @@
             searchInput.value = '';
             
             curTab = "Raw";
+            currentPage = 1; // 重置頁碼為第 1 頁
 
             // 3. 切換 Tab 時取消勾選並重新載入/繪製資料
             clearSelections();
@@ -763,6 +752,7 @@
             searchInput.value = '';
             
             curTab = "Common";
+            currentPage = 1; // 重置頁碼為第 1 頁
 
             // 3. 切換 Tab 時取消勾選並重新載入/繪製資料
             clearSelections();
@@ -794,24 +784,40 @@
         const confirmDownloadBtn = document.getElementById('confirmDownloadBtn');
         const downloadModalDesc = document.getElementById('downloadModalDesc');
 
+        // --- 下載控制開關 ---
+        // true: 未勾選時，預設下載頁面上所有項目
+        // false: 未勾選時，彈出警告提醒使用者勾選
+        const allowDefaultDownloadAll = false; // 可自由切換為 true 或 false
+
         openDownloadModalBtn.addEventListener('click', function() {
             const activeTable = rawTable.style.display !== 'none' ? rawTable : commonTable;
             const selectedBoxes = Array.from(activeTable.querySelectorAll('.row-checkbox:checked'));
 
             if (selectedBoxes.length > 0) {
+                // 有勾選項目時的處理邏輯
                 const selectedIds = selectedBoxes.map(cb => cb.value);
                 pendingDownloadData = currentMeasureData.filter(item => selectedIds.includes(String(item.id)));
                 downloadModalDesc.textContent = `您已勾選 ${pendingDownloadData.length} 筆資料，準備匯出。`;
             } else {
+                // 未勾選任何項目時的邏輯
+                if (!allowDefaultDownloadAll) {
+                    // 當開關為 false 時，提醒未勾選並中斷後續流程
+                    alert('請先勾選要下載的項目！');
+                    return;
+                }
+
+                // 當開關為 true 時，抓取全頁項目
                 pendingDownloadData = filterMeasureData;
                 downloadModalDesc.textContent = `目前未勾選特定資料，將為您匯出頁面上全部 ${pendingDownloadData.length} 筆資料。`;
             }
 
+            // 檢查是否有可下載的資料
             if (pendingDownloadData.length === 0) {
                 alert('目前無可下載的資料！');
                 return;
             }
 
+            // 顯示下載確認 Modal
             downloadModal.style.display = 'flex';
         });
 
@@ -880,6 +886,55 @@
             document.querySelectorAll('.select-all').forEach(cb => cb.checked = false);
             // 取消單列 Checkbox 的勾選
             document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
+        }
+
+        // =========================================================
+        // 動態渲染分頁 UI 控制項
+        // =========================================================
+        function renderPagination(totalItems) {
+            const paginationContainer = document.getElementById('pagination');
+            if (!paginationContainer) return;
+
+            const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
+            // console.log("totalPages :" + totalPages);
+
+            // 修正目前頁數範圍
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            let html = '';
+
+            // 上一頁按鈕
+            if (currentPage === 1) {
+                html += `<span class="page-link disabled">&larr; Previous</span>`;
+            } else {
+                html += `<a href="javascript:void(0)" class="page-link" onclick="goToPage(${currentPage - 1})">&larr; Previous</a>`;
+            }
+
+            // 頁號按鈕
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === currentPage) {
+                    html += `<a href="javascript:void(0)" class="page-link active">${i}</a>`;
+                } else {
+                    html += `<a href="javascript:void(0)" class="page-link" onclick="goToPage(${i})">${i}</a>`;
+                }
+            }
+
+            // 下一頁按鈕
+            if (currentPage === totalPages || totalPages === 0) {
+                html += `<span class="page-link disabled">Next &rarr;</span>`;
+            } else {
+                html += `<a href="javascript:void(0)" class="page-link" onclick="goToPage(${currentPage + 1})">Next &rarr;</a>`;
+            }
+
+            paginationContainer.innerHTML = html;
+        }
+
+        // 換頁觸發動作
+        function goToPage(page) {
+            currentPage = page;
+            clearSelections(); // 換頁時取消勾選
+            renderTables(curTab);
         }
     </script>
 </body>

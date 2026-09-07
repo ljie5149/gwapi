@@ -10,8 +10,6 @@
 
     // 取得 SSO Token (優先使用 Cookie，若無則呼叫 getGoldenKey())
     $sso_token = $_COOKIE['sso_token'] ?? (function_exists('getGoldenKey') ? getGoldenKey() : "");
-    // echo "username :${username}, userrole :${userrole}, acc_id :${member_id}, acc_id :${member_id}";
-    // exit;
 
     uiLocationPage();
     $cloud_url = "online_cloud.php";
@@ -68,7 +66,6 @@
             <span class="filter-label" style="margin-left: 15px;">更新日期</span>
             <div class="date-input-container">
                 <input type="text" id="dateRangeInput" placeholder="請選擇起迄日期" readonly>
-                <!-- <span>📅</span> -->
             </div>
         </div>
 
@@ -102,11 +99,7 @@
     </main>
 
     <!-- 頁尾分頁控制 -->
-    <footer class="pagination">
-        <span class="page-link disabled">&larr; Previous</span>
-        <a href="#" class="page-link active">1</a>
-        <a href="#" class="page-link">Next &rarr;</a>
-    </footer>
+    <footer class="pagination" id="pagination"></footer>
 
     <!-- 批次新增 Modal -->
     <div class="modal-overlay" id="batchModal">
@@ -248,6 +241,10 @@
 
         let currentDeviceList = [];
         let debounceTimer = null;
+
+        // --- 分頁控制變數 ---
+        let currentPage = 1;
+        const PAGE_SIZE = 10;
 
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
@@ -507,7 +504,6 @@
                 formData.append('table', 'data_device');
 
                 const response = await fetch(IMPORT_API_URL, { method: 'POST', body: formData });
-                // console.log("匯入設備序號清單 => " + response);
                 const result = await response.json();
 
                 clearInterval(progressInterval);
@@ -547,6 +543,7 @@
                         uploadFailDetailArea.style.display = 'block';
                     }
 
+                    currentPage = 1;
                     fetchDeviceList();
 
                     const delFormData = new FormData();
@@ -618,11 +615,15 @@
                 renderTable(searchKeyword);
             } catch (err) {
                 tbody.innerHTML = '<tr><td colspan="7" class="no-data">載入失敗，請重試</td></tr>';
+                renderPagination(0);
             }
         }
 
         function renderTable(keyword = '') {
             const tbody = document.getElementById('deviceTableBody');
+            const selectAll = document.getElementById('selectAll');
+            if (selectAll) selectAll.checked = false;
+
             const searchLower = keyword.toLowerCase();
 
             let filteredList = currentDeviceList.filter(row => {
@@ -633,11 +634,16 @@
 
             if (filteredList.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" class="no-data">查無符合條件的設備資料</td></tr>';
+                renderPagination(0);
                 return;
             }
 
+            // 分頁裁切 (每頁 10 筆)
+            const startIndex = (currentPage - 1) * PAGE_SIZE;
+            const paginatedList = filteredList.slice(startIndex, startIndex + PAGE_SIZE);
+
             let html = '';
-            filteredList.forEach(row => {
+            paginatedList.forEach(row => {
                 html += `
                     <tr>
                         <td class="checkbox-col">
@@ -656,6 +662,52 @@
             });
 
             tbody.innerHTML = html;
+            renderPagination(filteredList.length);
+        }
+
+        // =========================================================
+        // 動態渲染分頁按鈕
+        // =========================================================
+        function renderPagination(totalItems) {
+            const paginationContainer = document.getElementById('pagination');
+            if (!paginationContainer) return;
+
+            const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
+
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            let html = '';
+
+            // 上一頁按鈕
+            if (currentPage === 1) {
+                html += `<span class="page-link disabled">&larr; Previous</span>`;
+            } else {
+                html += `<a href="javascript:void(0)" class="page-link" onclick="goToPage(${currentPage - 1})">&larr; Previous</a>`;
+            }
+
+            // 頁號按鈕
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === currentPage) {
+                    html += `<a href="javascript:void(0)" class="page-link active">${i}</a>`;
+                } else {
+                    html += `<a href="javascript:void(0)" class="page-link" onclick="goToPage(${i})">${i}</a>`;
+                }
+            }
+
+            // 下一頁按鈕
+            if (currentPage === totalPages || totalPages === 0) {
+                html += `<span class="page-link disabled">Next &rarr;</span>`;
+            } else {
+                html += `<a href="javascript:void(0)" class="page-link" onclick="goToPage(${currentPage + 1})">Next &rarr;</a>`;
+            }
+
+            paginationContainer.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            renderTable(document.getElementById('searchInput').value.trim());
         }
 
         function openEditModalById(id) {
@@ -668,21 +720,14 @@
             editSelect.value = target.device_type || '';
             editSelect.disabled = true; // 將量測設備選單設為禁用
 
-            // 取得帶入的 device_name (優先取 selectedOption 的文字，若無則取 target 中的欄位)
+            // 取得帶入的 device_name
             const selectedOption = editSelect.options[editSelect.selectedIndex];
             const deviceName = (selectedOption && selectedOption.value) 
                 ? selectedOption.text 
                 : (target.device_name || '');
 
-            // 將 device_name 寫入隱藏欄位
             document.getElementById('editTargetName').value = deviceName;
-
             document.getElementById('editTargetId').value = target.id;
-            editSelect.value = target.device_type || '';
-            
-            // 將量測設備選單設為禁用
-            editSelect.disabled = true;
-
             document.getElementById('editAssetNo').value = target.asset_no || '';
             document.getElementById('editTag').value = target.tag || '';
 
@@ -696,7 +741,10 @@
                 locale: "zh_tw",
                 locale: { rangeSeparator: " - " },
                 onChange: function(selectedDates) {
-                    if (selectedDates.length === 2) fetchDeviceList();
+                    if (selectedDates.length === 2) {
+                        currentPage = 1;
+                        fetchDeviceList();
+                    }
                 }
             });
         }
@@ -708,11 +756,17 @@
             document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = this.checked);
         });
 
-        document.getElementById('deviceSelect').addEventListener('change', fetchDeviceList);
+        document.getElementById('deviceSelect').addEventListener('change', () => {
+            currentPage = 1;
+            fetchDeviceList();
+        });
 
         document.getElementById('searchInput').addEventListener('input', function() {
             clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => renderTable(this.value.trim()), 300);
+            debounceTimer = setTimeout(() => {
+                currentPage = 1;
+                renderTable(this.value.trim());
+            }, 300);
         });
 
         const batchModal = document.getElementById('batchModal');
@@ -745,15 +799,27 @@
                     const response = await fetch(DEV_API_URL, {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ sso_token: SSO_TOKEN, id: parseInt(id), who_call: 'device_list' })
+                        body: JSON.stringify({
+                            sso_token: SSO_TOKEN,
+                            id: parseInt(id),
+                            who_call: 'device_list' })
                     });
+                    // console.log(JSON.stringify({
+                    //         sso_token: SSO_TOKEN,
+                    //         id: parseInt(id),
+                    //         who_call: 'device_list' }));
                     const res = await response.json();
-                    if (res.status === 'true') successCount++; else failCount++;
+                    if (res.status === 'true') {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
                 } catch (err) { failCount++; }
             }
 
             alert(`刪除完成！成功：${successCount} 筆，失敗：${failCount} 筆`);
             deleteModal.style.display = 'none';
+            currentPage = 1; // 重置頁碼為第 1 頁
             fetchDeviceList();
         });
 
@@ -767,12 +833,9 @@
             const deviceType = document.getElementById('editDeviceType').value;
             const assetNo = document.getElementById('editAssetNo').value;
             const deviceName = document.getElementById('editTargetName').value;
-            
-            // 修正處：將 'editSid' 改為 HTML 實際存在的欄位 ID 'editTag'
             const tagInput = document.getElementById('editTag');
             const tag = tagInput ? tagInput.value : '';
 
-            // console.log("assetNo => " + assetNo, "deviceType => " + deviceType, "deviceName => " + deviceName, "tag => " + tag);
             if (!id) return;
 
             const payload = {
@@ -784,20 +847,17 @@
                 who_call: 'web'
             };
 
-            // console.log('json => ' + JSON.stringify(payload));
-
             try {
                 const response = await fetch(DEV_API_URL, {
                     method: 'PATCH',
                     headers: { 
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${SSO_TOKEN}` // 改為 Bearer Token 傳送
+                        'Authorization': `Bearer ${SSO_TOKEN}`
                     },
                     body: JSON.stringify(payload)
                 });
 
                 const res = await response.json();
-                // console.log("修改設備資料 => ", res);
                 if (res.status === 'true') {
                     alert('設備資料修改成功！');
                     editModal.style.display = 'none';
