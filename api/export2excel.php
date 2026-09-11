@@ -46,13 +46,13 @@
             $default_device_str = !empty($default_devices) ? "(" . implode(',', $default_devices) . ")" : "";
 
             // 4. 定義匯出目標欄位與預設中文備援標題
-            $target_fields = array('asset_no', 'device_name', 'tag');
+            $target_fields = array('device_name', 'asset_no', 'tag');
             $export_fields = implode(',', $target_fields);
 
             $default_comments = array(
-                'asset_no'    => '設備資產序號',
                 'device_name' => '設備中文名稱',
-                'tag'         => '設備識別標籤'
+                'asset_no'    => '序號',
+                'tag'         => '設備編號'
             );
 
             // 5. 獲取資料表欄位資訊並建立 HashMap
