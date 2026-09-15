@@ -289,6 +289,8 @@
                             ];
                             continue;
                         }
+                        
+                        process_neoupload_data($items);
 
                         // 檢查 sid 是否已存在
                         $chk_sql = "SELECT * FROM `$tableMain` WHERE sid = ? LIMIT 1";

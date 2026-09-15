@@ -43,6 +43,344 @@
     include("author_define.php");
     include("mailCore.php");
 	
+	/**
+	 * 處理 NeoUpload 資料轉換並呼叫第三方 API 上傳
+	 *
+	 * @param array $param_data 外部傳入的 ApiRequestParam 陣列
+	 * @param resource|mysqli|null $link 資料庫連線指標 (選擇性傳入)
+	 * @return array 處理結果訊息陣列
+	 */
+	function process_neoupload_data(array $param_data) {
+		$remote_ip  = get_remote_ip();
+		$null_array = array();
+		$caption    = "共通資料上傳";
+		$member_id  = "Neo_Upload back_end";
+		$log_table  = "log_message";
+
+		$data = array();
+
+		try {
+			// 1. 驗證傳入的 ApiRequestParam 資料
+			if (empty($param_data) || !is_array($param_data)) {
+				return result_message("false", "0x0201", "Invalid API Parameter Input", $null_array);
+			}
+
+			// 2. 解析內含的 json_data (血壓計原始 JSON 字串)
+			$device_json_str = $param_data['json_data'] ?? "";
+			$device_data     = json_decode($device_json_str, true);
+
+			if (empty($device_data) || !is_array($device_data)) {
+				return result_message("false", "0x0202", "Invalid or Empty json_data content", $null_array);
+			}
+
+			// 若儀器標記為錯誤狀態則不進行上傳
+			if (!empty($device_data['IsErrorOccured']) && $device_data['IsErrorOccured'] === true) {
+				return result_message("false", "0x0203", "Device error flag is set to true", $null_array);
+			}
+
+			// 3. 轉換日期時間格式 (YYYYMMDDHHmmss -> YYYY-MM-DD HH:mm:ss)
+			$raw_time = $device_data['MeasurementDateTime'] ?? "";
+			$dt = DateTime::createFromFormat('YmdHis', $raw_time);
+			$formatted_time = $dt ? $dt->format('Y-m-d H:i:s') : date('Y-m-d H:i:s');
+
+			$payload = [];
+			$model_name = $device_data['ModelName'] ?? "";
+
+			// 4. 依據設備型號轉繪成第三方 API 規格所要求的 Payload 結構
+			if ($model_name == "VTrust_701DH") { // 血壓計
+				$payload = array(
+					"barcode"         => ($param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
+					"checkpoint_code" => "STATION_BLOOD_PRESSURE",
+					"account"         => !empty($param_data['editor']) ? $param_data['editor'] : "admin@XXXX.com",
+					"facilityId"      => isset($param_data['facilityId']) ? (int)$param_data['facilityId'] : 1,
+					"inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
+					"measured_at"     => $formatted_time,
+					"instrument_name" => $model_name ?: ($param_data['machineModel'] ?? ""),
+					"extra_data"      => array(
+						array("tag" => "systolic",  "value" => (int)($device_data['SYS'] ?? 0)),
+						array("tag" => "diastolic", "value" => (int)($device_data['DIA'] ?? 0)),
+						array("tag" => "pulse",     "value" => (int)($device_data['Pulse'] ?? 0))
+					)
+				);
+			} elseif ($model_name == "CT_800_AND_CT_1P_STD5") { // 眼壓儀
+				$iop_dt = DateTime::createFromFormat('Y-m-d H:i:s', $raw_time);
+				$formatted_time = $iop_dt ? $iop_dt->format('Y-m-d H:i:s') : $formatted_time;
+
+				$payload = array(
+					"barcode"         => ($param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
+					"checkpoint_code" => "STATION_INTRAOCULAR_PRESSURE",
+					"account"         => !empty($param_data['editor']) ? $param_data['editor'] : "admin@XXXX.com",
+					"facilityId"      => isset($param_data['facilityId']) ? (int)$param_data['facilityId'] : 1,
+					"inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
+					"measured_at"     => $formatted_time,
+					"instrument_name" => $model_name ?: ($param_data['machineModel'] ?? ""),
+					"extra_data"      => array(
+						array("tag" => "iop_r", "value" => (int)($device_data['RightEye_mmHg'] ?? 0)),
+						array("tag" => "iop_l", "value" => (int)($device_data['LeftEye_mmHg'] ?? 0))
+					)
+				);
+			} elseif ($model_name == "KR_RM_CL") { // 驗光機
+				$optometry_dt = DateTime::createFromFormat('Y_m_d A h:i', $raw_time);
+				$formatted_time = $optometry_dt ? $optometry_dt->format('Y-m-d H:i:s') : $formatted_time;
+
+				$payload = array(
+					"barcode"         => ($param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
+					"checkpoint_code" => "STATION_OPTOMETRY_TEST",
+					"account"         => !empty($param_data['editor']) ? $param_data['editor'] : "admin@XXXX.com",
+					"facilityId"      => isset($param_data['facilityId']) ? (int)$param_data['facilityId'] : 1,
+					"inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
+					"measured_at"     => $formatted_time,
+					"instrument_name" => $model_name ?: ($param_data['machineModel'] ?? ""),
+					"extra_data"      => array(
+						array("tag" => "sph_uncorrected_r", "value" => (string)($device_data['RightEyeTypical']['SPH'] ?? "")),
+						array("tag" => "sph_uncorrected_l", "value" => (string)($device_data['LeftEyeTypical']['SPH'] ?? "")),
+						array("tag" => "cyl_uncorrected_r", "value" => (string)($device_data['RightEyeTypical']['CYL'] ?? "")),
+						array("tag" => "cyl_uncorrected_l", "value" => (string)($device_data['LeftEyeTypical']['CYL'] ?? ""))
+					)
+				);
+			} elseif ($model_name == "BSM3X0(330/370)") { // 身高體重機
+				$payload = array(
+					"barcode"         => ($param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
+					"checkpoint_code" => "STATION_HEIGHT_WEIGHT",
+					"account"         => !empty($param_data['editor']) ? $param_data['editor'] : "admin@XXXX.com",
+					"facilityId"      => isset($param_data['facilityId']) ? (int)$param_data['facilityId'] : 1,
+					"inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
+					"measured_at"     => $formatted_time,
+					"instrument_name" => $model_name ?: ($param_data['machineModel'] ?? ""),
+					"extra_data"      => array(
+						array("tag" => "height", "value" => (float)($device_data['Height_cm'] ?? 0)),
+						array("tag" => "weight", "value" => (float)($device_data['Weight_kg'] ?? 0)),
+						array("tag" => "bmi",    "value" => (float)($device_data['BMI'] ?? 0))
+					)
+				);
+			} else if ($device_data['ModelName'] == "Inbody_120") { // 體脂計
+				// 4. 轉繪成第三方 API 規格所要求的 Payload 結構
+				// $payload = array(
+				//     "barcode"         => ($param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
+				//     "checkpoint_code" => "STATION_BLOOD_PRESSURE",
+				//     "account"         => !empty($param_data['editor']) ? $param_data['editor'] : "admin@XXXX.com",
+				//     "facilityId"      => isset($param_data['facilityId']) ? (int)$param_data['facilityId'] : 1,
+				//     "inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
+				//     "measured_at"     => $formatted_time,
+				//     "instrument_name" => $device_data['ModelName'] ?? ($param_data['machineModel'] ?? ""),
+				//     "extra_data"      => array(
+				//         array("tag" => "systolic",  "value" => (int)($device_data['SYS'] ?? 0)),
+				//         array("tag" => "diastolic", "value" => (int)($device_data['DIA'] ?? 0)),
+				//         array("tag" => "pulse",     "value" => (int)($device_data['Pulse'] ?? 0))
+				//     )
+				// );
+			} else if ($device_data['ModelName'] == "HI301") { // 肺功能儀
+				// 4. 轉繪成第三方 API 規格所要求的 Payload 結構
+				// $payload = array(
+				//     "barcode"         => ($param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
+				//     "checkpoint_code" => "STATION_BLOOD_PRESSURE",
+				//     "account"         => !empty($param_data['editor']) ? $param_data['editor'] : "admin@XXXX.com",
+				//     "facilityId"      => isset($param_data['facilityId']) ? (int)$param_data['facilityId'] : 1,
+				//     "inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
+				//     "measured_at"     => $formatted_time,
+				//     "instrument_name" => $device_data['ModelName'] ?? ($param_data['machineModel'] ?? ""),
+				//     "extra_data"      => array(
+				//         array("tag" => "systolic",  "value" => (int)($device_data['SYS'] ?? 0)),
+				//         array("tag" => "diastolic", "value" => (int)($device_data['DIA'] ?? 0)),
+				//         array("tag" => "pulse",     "value" => (int)($device_data['Pulse'] ?? 0))
+				//     )
+				// );
+			} else if ($device_data['ModelName'] == "CM300") { // 骨密度儀
+				// 4. 轉繪成第三方 API 規格所要求的 Payload 結構
+				// $payload = array(
+				//     "barcode"         => ($param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
+				//     "checkpoint_code" => "STATION_BLOOD_PRESSURE",
+				//     "account"         => !empty($param_data['editor']) ? $param_data['editor'] : "admin@XXXX.com",
+				//     "facilityId"      => isset($param_data['facilityId']) ? (int)$param_data['facilityId'] : 1,
+				//     "inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
+				//     "measured_at"     => $formatted_time,
+				//     "instrument_name" => $device_data['ModelName'] ?? ($param_data['machineModel'] ?? ""),
+				//     "extra_data"      => array(
+				//         array("tag" => "systolic",  "value" => (int)($device_data['SYS'] ?? 0)),
+				//         array("tag" => "diastolic", "value" => (int)($device_data['DIA'] ?? 0)),
+				//         array("tag" => "pulse",     "value" => (int)($device_data['Pulse'] ?? 0))
+				//     )
+				// );
+			} else {
+				// 未支援的設備型號時的回傳
+				return result_message("false", "0x0205", "Unsupported Device Model: " . $model_name, $null_array);
+			}
+
+			// 5. 金鑰與公鑰檢查
+			$account       = $payload['account'];
+			$facility_id   = $payload['facilityId'];
+			$gateway_token = "8fXXXXXX5d";
+			$pub_key_path  = __DIR__ . "/../cert/public_key.pem";
+
+			if (!file_exists($pub_key_path)) {
+				return result_message("false", "0x0204", "RSA Public Key File Not Found", $null_array);
+			}
+			$public_key = file_get_contents($pub_key_path);
+
+			// 6. 呼叫傳送函式
+			$data = upload_to_third_party_api(
+				$member_id, 
+				$payload, 
+				$account, 
+				$facility_id, 
+				$gateway_token, 
+				$public_key, 
+				null, 
+				$remote_ip, 
+				$caption, 
+				$log_table
+			);
+
+		} catch (Throwable $t) {
+			$data = result_message("false", "0x0209", "System error: " . $t->getMessage(), $null_array);
+		} finally {
+		}
+
+		return $data;
+	}
+
+    /**
+     * 產生規格書所需的 X-Gateway-Token
+     *
+     * @param string $account       操作員帳號 (例: admin@XXXX.com)
+     * @param int    $facility_id   機構 ID (例: 1)
+     * @param string $gateway_token Gateway 專用 Token 密鑰 (例: 8fXXXXXX5d)
+     * @param string $public_key    RSA 公鑰 (可以是 PEM 格式字串，或 PEM 檔案路徑)
+     * @param int|null $timestamp   時間戳 (選填，若未傳入則預設為當前 UNIX timestamp)
+     * 
+     * @return string|false 回傳 RSA-OAEP 加密並轉 Base64 後的 Token，失敗時回傳 false
+     */
+    function generate_gateway_token($account, $facility_id, $gateway_token, $public_key, $timestamp = null)
+    {
+        // 1. 若未指定時間戳，取得當前時間戳
+        if ($timestamp === null) {
+            $timestamp = time();
+        }
+
+        // 2. 組合原始未加密字串 (格式: 帳號|機構 ID|Gateway 專用 Token|時間戳)
+        $raw_token = sprintf("%s|%d|%s|%s", $account, $facility_id, $gateway_token, $timestamp);
+
+        // 3. 處理 RSA 公鑰資源
+        $key_resource = openssl_pkey_get_public($public_key);
+        if (!$key_resource) {
+            error_log("Gateway Token Generation Error: Invalid RSA Public Key");
+            return false;
+        }
+
+        // 4. 使用 RSA-OAEP Padding 進行加密
+        $encrypted_binary = "";
+        $success = openssl_public_encrypt(
+            $raw_token,
+            $encrypted_binary,
+            $key_resource,
+            OPENSSL_PKCS1_OAEP_PADDING
+        );
+
+        if (!$success) {
+            error_log("Gateway Token Generation Error: RSA Encryption Failed - " . openssl_error_string());
+            return false;
+        }
+
+        // 5. 將二進位加密資料轉為 Base64 字串
+        return base64_encode($encrypted_binary);
+    }
+    /**
+     * 呼叫第三方 API 上傳資料並將結果寫入 log_message 資料表
+     *
+     * @param string $account       操作員帳號 (例: admin@XXXX.com)
+     * @param int    $facility_id   機構 ID (例: 1)
+     * @param string $gateway_token Gateway 專用 Token 密鑰 (例: 8fXXXXXX5d)
+     * @param string $public_key    RSA 公鑰 (可以是 PEM 格式字串，或 PEM 檔案路徑)
+     * @param int|null $timestamp   時間戳 (選填，若未傳入則預設為當前 UNIX timestamp)
+     * @param string $member_id     操作人員/系統識別碼
+     * @param array  $payload       傳送給第三方 API 的資料 (Request Body)
+     * @param string $gateway_token RSA 加密後的 Gateway Token (寫入 Header: X-Gateway-Token)
+     * @param string $caption       記錄與說明標題
+     * @param string $log_table     Log 資料表名稱 (預設: log_message)
+     * @return array 包含執行狀態 (status) 與結果的陣列
+     */
+    function upload_to_third_party_api($member_id, $payload, $account, $facility_id, $gateway_token, $public_key, $timestamp = null, $remote_ip = "", $caption = "呼叫第三方 API 上傳資料", $log_table = "log_message")
+    {
+        if (empty($remote_ip)) $remote_ip = get_remote_ip();
+
+        $db = new CXDB($remote_ip);
+        $link = null;
+
+        try {
+            $conn_res = $db->connect($link, $member_id, "");
+
+            if ($conn_res["status"] == "true") {
+                $null_array = array();
+                $curl_error = "";
+                
+                // Target API Details
+                $api_url = "https://neoexam-prod.neov.ai/api/api/backstage/health-examinations";
+
+                $gateway_token = generate_gateway_token($account, $facility_id, $gateway_token, $public_key, $timestamp);
+                // 設定 Request Headers (包含必填的 X-Gateway-Token)
+                $headers = array(
+                    "Content-Type: application/json",
+                    "X-Gateway-Token: " . $gateway_token
+                );
+
+                // 1. 執行 API 呼叫 (請確認 callAPI 支援傳入 headers 陣列)
+                $api_response = callAPI($curl_error, $api_url, $payload, "POST", $headers);
+
+                // 2. 判斷 API 呼叫結果
+                if (!empty($curl_error)) {
+                    $status_code  = "0x0210";
+                    $message_kind = "ERROR";
+                    $summary_text = "API Request Failed: " . $curl_error;
+                    $result_data  = result_message("false", $status_code, $summary_text, $null_array);
+                } else {
+                    $status_code  = "0x0200";
+                    $message_kind = "SUCCESS";
+                    $summary_text = "API Request Successful";
+                    $decoded_res  = json_decode($api_response, true);
+                    $result_data  = result_message("true", $status_code, $summary_text, $decoded_res !== null ? $decoded_res : array());
+                }
+
+                // 3. 寫入 Log 至 log_message 資料表
+                $insert_sql = "INSERT INTO {$log_table} 
+                    (create_date, member_sid, message_kind, title, summary, content, script, remark) 
+                    VALUES 
+                    (NOW(), ?, ?, ?, ?, ?, ?, ?)";
+
+                $stmt = mysqli_prepare($link, $insert_sql);
+                if ($stmt) {
+                    $title_text   = $caption;
+                    $content_json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+                    // 在 script 欄位補上 Token 資訊以利除錯
+                    $script_info  = "Target URL: " . $api_url . " | Token: " . $gateway_token;
+                    $remark_text  = (!empty($curl_error)) ? "cURL Error: " . $curl_error : "Raw Response: " . $api_response;
+
+                    $types  = "sssssss";
+                    $params = array(
+                        $member_id, 
+                        $message_kind, 
+                        $title_text, 
+                        $summary_text, 
+                        $content_json, 
+                        $script_info, 
+                        $remark_text
+                    );
+
+                    mysqli_stmt_bind_param($stmt, $types, ...$params);
+                    mysqli_stmt_execute($stmt);
+                    mysqli_stmt_close($stmt);
+                }
+            }
+        } catch (Exception $e) {
+            $data = result_message("false", "0x0209", "Exception error: " . $e->getMessage(), $null_array);
+        } finally {
+            $data_close_conn = close_connection_finally($link, $remote_ip, $member_id);
+            if ($data_close_conn["status"] === "false") {
+                $data = $data_close_conn;
+            }
+        }
+
+        return $result_data;
+    }
 	function getGoldenKey($forceRefresh = false)
 	{
 		global $g_root_url, $g_k;
