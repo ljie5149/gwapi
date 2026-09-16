@@ -234,31 +234,38 @@
         }
 
         // 3. 通用網路連線測試 Ping/Fetch 函數
-        async function pingUrl(url, timeout = 3000) {
-            if (!url || url === '-' || url.trim() === '') return false;
+        async function checkUrlOnline(url, timeout = 5000) {
+            return new Promise((resolve) => {
+                let targetUrl = url.trim();
+                if (!/^https?:\/\//i.test(targetUrl)) {
+                    targetUrl = 'http://' + targetUrl;
+                }
 
-            let targetUrl = url.trim();
-            if (!/^https?:\/\//i.test(targetUrl)) {
-                targetUrl = 'https://' + targetUrl;
-            }
+                const img = new Image();
+                const timer = setTimeout(() => {
+                    img.src = ""; // 逾時中斷
+                    resolve({ online: false, reason: "Timeout" });
+                }, timeout);
 
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeout);
+                // 只要伺服器有回應（包含 404 或 CORS 錯誤），都會觸發 onerror/onload
+                img.onload = img.onerror = () => {
+                    clearTimeout(timer);
+                    resolve({ online: true });
+                };
 
-            try {
-                await fetch(targetUrl, {
-                    method: 'GET',
-                    mode: 'no-cors',
-                    cache: 'no-cache',
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                return true;
-            } catch (err) {
-                clearTimeout(timeoutId);
-                return false;
-            }
+                // 加上 timestamp 防止快取影響測試結果
+                img.src = `${targetUrl}/favicon.ico?_=${Date.now()}`;
+            });
         }
+
+        // 測試目標網址
+        checkUrlOnline('http://hms25.share-hope.com').then(result => {
+            if (result.online) {
+                console.log('連線成功：目標伺服器在線（可連線）');
+            } else {
+                console.log('連線失敗：伺服器無回應或連線逾時');
+            }
+        });
 
         // 4. 更新 UI 狀態顯示 (控制綠色連線 / 紅色未連線與 ✕ 符號)
         function updateStatusUI(type, isConnected, isChecking = false) {
@@ -308,7 +315,7 @@
         // 根據指定的類型與 URL 進行連線測試
         async function checkSingleStatusByUrl(type, url) {
             updateStatusUI(type, false, true); // 顯示檢測中
-            const isOnline = await pingUrl(url);
+            const isOnline = await checkUrlOnline(url);
             updateStatusUI(type, isOnline, false);
         }
 
