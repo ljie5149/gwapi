@@ -21,10 +21,11 @@
     try {
         // 1. 接收 C# / 外部傳入的 ApiRequestParam JSON 資料
         $raw_input = file_get_contents("php://input");
+        // echo $raw_input."\n";
         $param_data = json_decode($raw_input, true);
 
         // 2. 呼叫 Function 處理業務邏輯
-        $data = process_neoupload_data($param_data);
+        $data = process_neoupload_data("", $param_data);
 
     } catch (Throwable $t) {
         // PHP 7+ 支援 Catch Throwable (可同時捕獲 Error 與 Exception)

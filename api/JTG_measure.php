@@ -99,7 +99,8 @@
     /**
      * 寫入 log_measure 紀錄表
      */
-    function writeMeasureLog($link, $tableLog, $facilityId, $measureId, $sid, $measureNo, $deviceNo, $machineModel, $actionType, $changeData, $actionUser, $actionIp, $actionNote) {
+    function writeMeasureLog($link, $tableLog, $facilityId, $account, $measureId, $sid, $measureNo, $deviceNo, 
+                                $machineModel, $actionType, $changeData, $actionUser, $actionIp, $actionNote) {
         // 白名單驗證表名，避免非預期拼接 SQL 注入
         $allowed_tables = ['log_measure'];
         if (!in_array($tableLog, $allowed_tables, true)) {
@@ -107,13 +108,13 @@
         }
 
         $log_sql = "INSERT INTO `$tableLog` 
-                    (facility_id, measure_id, sid, measure_no, asset_no, machine_model, action_type, change_data, action_user, action_ip, action_note, created_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                    (facility_id, account, measure_id, sid, measure_no, asset_no, machine_model, action_type, change_data, action_user, action_ip, action_note, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
         $stmt = mysqli_prepare($link, $log_sql);
         if ($stmt) {
             $json_change = is_array($changeData) || is_object($changeData) ? json_encode($changeData, JSON_UNESCAPED_UNICODE) : $changeData;
-            mysqli_stmt_bind_param($stmt, "iisssssssss", 
-                $facilityId, $measureId, $sid, $measureNo, $deviceNo, $machineModel, 
+            mysqli_stmt_bind_param($stmt, "isisssssssss", 
+                $facilityId, $account, $measureId, $sid, $measureNo, $deviceNo, $machineModel, 
                 $actionType, $json_change, $actionUser, $actionIp, $actionNote
             );
             mysqli_stmt_execute($stmt);
@@ -199,7 +200,7 @@
                     }
 
                     // 回傳欄位含檢測人員相關欄位與檔案資料
-                    $sql = "SELECT id, sid, facility_id, measure_no, asset_no, device_type_zhtw, machine_model, asset_no, 
+                    $sql = "SELECT id, sid, facility_id, account, measure_no, asset_no, device_type_zhtw, machine_model, asset_no, 
                                    online_type, is_uploaded, json_data, raw_data, file_name, mime_type, file_size, file_data, 
                                    tester_identifier, tester_work_id, tester_name, editor, measure_count, 
                                    measure_date, up_json_data, remark, created_at, updated_at 
@@ -255,6 +256,7 @@
 
                         $facility_id   = isset($item['facility_id']   ) ? intval($item['facility_id']) : 0;
                         $device_type_zhtw    = isset($item['device_type_zhtw']    ) ? trim($item['device_type_zhtw'])  : '';
+                        $account        = isset($item['account']    ) ? trim($item['account'])  : '';
                         $measure_no    = isset($item['measure_no']    ) ? trim($item['measure_no'])  : '';
                         $asset_no     = isset($item['asset_no']     ) ? trim($item['asset_no'])   : '';
                         $machine_model = isset($item['machine_model'] ) ? trim($item['machine_model']) : '';
@@ -289,8 +291,6 @@
                             ];
                             continue;
                         }
-                        
-                        process_neoupload_data($items);
 
                         // 檢查 sid 是否已存在
                         $chk_sql = "SELECT * FROM `$tableMain` WHERE sid = ? LIMIT 1";
@@ -310,7 +310,7 @@
                             // 若沒帶入新檔案則保留原本的檔案相關資訊，防止被覆蓋為 NULL
                             if ($file_binary === null) {
                                 $update_sql = "UPDATE `$tableMain` 
-                                               SET sid = ?, facility_id = ?, device_type_zhtw = ?, measure_no = ?, asset_no = ?, machine_model = ?, 
+                                               SET account = ?, sid = ?, facility_id = ?, device_type_zhtw = ?, measure_no = ?, asset_no = ?, machine_model = ?, 
                                                     device_type_zhtw = ?, 
                                                    online_type = ?, is_uploaded = ?, json_data = ?, raw_data = ?, 
                                                    tester_identifier = ?, tester_work_id = ?, tester_name = ?, editor = ?,
@@ -318,7 +318,8 @@
                                                WHERE id = ?";
                                 
                                 $up_stmt = mysqli_prepare($link, $update_sql);
-                                mysqli_stmt_bind_param($up_stmt, "sisssssissonsssssi", 
+                                mysqli_stmt_bind_param($up_stmt, "ssisssssissonsssssi", 
+                                    $account,
                                     $sid, $facility_id, $measure_no, $asset_no, $machine_model, 
                                     $device_type_zhtw,
                                     $online_type, $is_uploaded, $json_data, $raw_data, 
@@ -327,7 +328,7 @@
                                 );
                             } else {
                                 $update_sql = "UPDATE `$tableMain` 
-                                               SET sid = ?, facility_id = ?, measure_no = ?, asset_no = ?, machine_model = ?, 
+                                               SET account = ?, sid = ?, facility_id = ?, measure_no = ?, asset_no = ?, machine_model = ?, 
                                                     device_type_zhtw = ?, 
                                                    online_type = ?, is_uploaded = ?, json_data = ?, raw_data = ?, file_name = ?, mime_type = ?, file_size = ?, 
                                                    file_data = ?, tester_identifier = ?, tester_work_id = ?, tester_name = ?, editor = ?,
@@ -336,7 +337,8 @@
                                 
                                 $up_stmt = mysqli_prepare($link, $update_sql);
                                 $null_placeholder = NULL;
-                                mysqli_stmt_bind_param($up_stmt, "sisssssissibssssssssi", 
+                                mysqli_stmt_bind_param($up_stmt, "ssisssssissibssssssssi", 
+                                    $account,
                                     $sid, $facility_id, $measure_no, $asset_no, $machine_model, 
                                     $device_type_zhtw, 
                                     $online_type, $is_uploaded, $json_data, $raw_data, $file_name, $mime_type, $file_size, 
@@ -357,7 +359,7 @@
                                 $log_after = $item; unset($log_after['file_data']);
 
                                 writeMeasureLog(
-                                    $link, $tableLog, $facility_id, $exist_id, $sid, $measure_no, 
+                                    $link, $tableLog, $facility_id, $account, $exist_id, $sid, $measure_no, 
                                     $asset_no, $machine_model, 'REUPLOAD', 
                                     ['before' => $log_before, 'after' => $log_after], 
                                     $member_id, $remote_ip, $who_call . ' 呼叫 api ' . $API_name
@@ -374,14 +376,14 @@
 
                             $generated_sid = !empty($sid) ? $sid : ('MD_' . substr(md5(uniqid(mt_rand(), true)), 0, 12));
                             $insert_sql = "INSERT INTO `$tableMain` 
-                                           (sid, facility_id, measure_no, asset_no, device_type_zhtw, machine_model, online_type, is_uploaded, json_data, raw_data, file_name, mime_type, file_size, file_data, tester_identifier, tester_work_id, tester_name, editor, measure_date, up_json_data, remark, created_at) 
-                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                                           (sid, facility_id, account, measure_no, asset_no, device_type_zhtw, machine_model, online_type, is_uploaded, json_data, raw_data, file_name, mime_type, file_size, file_data, tester_identifier, tester_work_id, tester_name, editor, measure_date, up_json_data, remark, created_at) 
+                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
                             
                             $in_stmt = mysqli_prepare($link, $insert_sql);
                             
                             $null_placeholder = NULL;
-                            mysqli_stmt_bind_param($in_stmt, "sisssssissibsssssssss", 
-                                $generated_sid, $facility_id, $measure_no, $asset_no, $device_type_zhtw, 
+                            mysqli_stmt_bind_param($in_stmt, "sissssssissibsssssssss", 
+                                $generated_sid, $facility_id, $account, $measure_no, $asset_no, $device_type_zhtw, 
                                 $machine_model, $online_type, $is_uploaded, $json_data, $raw_data, 
                                 $file_name, $mime_type, $file_size, $null_placeholder, $tester_identifier, 
                                 $tester_work_id, $tester_name, $editor, $measure_date, $up_json_data, 
@@ -403,10 +405,10 @@
                                 $log_item = $item; unset($log_item['file_data']);
 
                                 writeMeasureLog(
-                                    $link, $tableLog, $facility_id, $new_id, $sid, $measure_no, 
+                                    $link, $tableLog, $facility_id, $account, $new_id, $sid, $measure_no, 
                                     $asset_no, $machine_model, 'INSERT', 
                                     $log_item, 
-                                    $member_id, $remote_ip, $who_call . ' 呼叫 api ' . $API_name
+                                    $member_id, $remote_ip, $who_call . ' 呼叫 api ' . $API_name 
                                 );
                             } else {
                                 if ($in_stmt) mysqli_stmt_close($in_stmt);
@@ -420,6 +422,14 @@
                     $code_flag = $has_error ? "0x0206" : "0x0200";
                     $msg_flag = $has_error ? "部分或全部 $caption 處理失敗" : "處理 $caption 成功";
                     $data = result_message($status_flag, $code_flag, $msg_flag, $processed_results);
+                    
+                    if ($status_flag == "true") {
+                        $item['barcode'] = $measure_no;
+                        $item['gateway_token'] = $json_token;
+                        if (empty($sid) || strlen($sid) == 0) $sid = $generated_sid;
+                        $resp = process_neoupload_data($sid, $item);
+                        $data['uploadHms'] = $resp;
+                    }
                     break;
 
                 // ==========================================
@@ -543,10 +553,10 @@
                         $log_payload = $src_data; unset($log_payload['file_data']);
 
                         writeMeasureLog(
-                            $link, $tableLog, 
+                            $link, $tableLog,
                             isset($src_data['facility_id']) ? intval($src_data['facility_id']) : $old_data['facility_id'], 
+                            isset($src_data['account']) ? $src_data['account'] : $old_data['account'], 
                             $target_id, $old_data['sid'], 
-                            isset($src_data['device_type_zhtw']) ? $src_data['device_type_zhtw'] : $old_data['device_type_zhtw'], 
                             isset($src_data['measure_no']) ? $src_data['measure_no'] : $old_data['measure_no'], 
                             isset($src_data['asset_no']) ? $src_data['asset_no'] : $old_data['asset_no'], 
                             isset($src_data['machine_model']) ? $src_data['machine_model'] : $old_data['machine_model'], 
@@ -611,7 +621,7 @@
                         $log_target = $target_data; unset($log_target['file_data']);
 
                         writeMeasureLog(
-                            $link, $tableLog, $target_data['facility_id'], $target_id, $target_data['sid'], 
+                            $link, $tableLog, $target_data['facility_id'], $target_data['account'], $target_id, $target_data['sid'], 
                             $target_data['measure_no'], $target_data['asset_no'], $target_data['machine_model'], 
                             'DELETE', 
                             $log_target, 

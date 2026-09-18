@@ -93,20 +93,20 @@
     /**
      * 寫入 log_measure 紀錄表
      */
-    function writeMeasureLog($link, $tableLog, $facilityId, $measureId, $sid, $measureNo, $deviceNo, $machineModel, $actionType, $changeData, $actionUser, $actionIp, $actionNote) {
+    function writeMeasureLog($link, $tableLog, $facilityId, $account, $measureId, $sid, $measureNo, $deviceNo, $machineModel, $actionType, $changeData, $actionUser, $actionIp, $actionNote) {
         $allowed_tables = ['log_measure'];
         if (!in_array($tableLog, $allowed_tables, true)) {
             return false;
         }
 
         $log_sql = "INSERT INTO `$tableLog` 
-                    (facility_id, measure_id, sid, measure_no, asset_no, machine_model, action_type, change_data, action_user, action_ip, action_note, created_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                    (facility_id, account, measure_id, sid, measure_no, asset_no, machine_model, action_type, change_data, action_user, action_ip, action_note, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
         $stmt = mysqli_prepare($link, $log_sql);
         if ($stmt) {
             $json_change = is_array($changeData) || is_object($changeData) ? json_encode($changeData, JSON_UNESCAPED_UNICODE) : $changeData;
-            mysqli_stmt_bind_param($stmt, "iisssssssss", 
-                $facilityId, $measureId, $sid, $measureNo, $deviceNo, $machineModel, 
+            mysqli_stmt_bind_param($stmt, "isisssssssss", 
+                $facilityId, $account, $measureId, $sid, $measureNo, $deviceNo, $machineModel, 
                 $actionType, $json_change, $actionUser, $actionIp, $actionNote
             );
             mysqli_stmt_execute($stmt);
@@ -130,6 +130,7 @@
             $who_call          = get_str_val($item, 'who_call', 'app');
             $sid               = get_str_val($item, 'sid', '');
             $facility_id       = get_int_val($item, 'facility_id', 0);
+            $account           = get_int_val($item, 'account', '');
             $measure_no        = get_str_val($item, 'measure_no', '');
             $asset_no          = get_str_val($item, 'asset_no', '');
             $machine_model     = get_str_val($item, 'machine_model', '');
@@ -176,13 +177,13 @@
             $generated_sid = !empty($sid) ? $sid : ('MD_' . substr(md5(uniqid(mt_rand(), true)), 0, 12));
             
             $insert_sql = "INSERT INTO `$tableMain` (
-                                sid, facility_id, measure_no, tester_identifier, tester_work_id,
+                                sid, facility_id, account, measure_no, tester_identifier, tester_work_id,
                                 tester_name, tester_age, tester_height, editor, asset_no,
                                 device_type_zhtw, machine_model, measure_count, online_type, is_uploaded, 
                                 json_data, raw_data, file_name, mime_type, file_size,
                                 file_data, measure_date, up_json_data, remark, created_at
                             ) VALUES (
-                                ?, ?, ?, ?, ?,
+                                ?, ?, ?, ?, ?, ?,
                                 ?, ?, ?, ?, ?,
                                 ?, ?, ?, ?, ?,
                                 ?, ?, ?, ?, ?,
@@ -193,8 +194,8 @@
             $null_placeholder = NULL;
 
             // 第 21 個位置對應 'b'，綁定變數傳入 $null_placeholder (NULL)
-            mysqli_stmt_bind_param($in_stmt, "sissssssssssisissssibsss", 
-                $generated_sid, $facility_id, $measure_no, $tester_identifier, $tester_work_id, 
+            mysqli_stmt_bind_param($in_stmt, "sisssssssssssisissssibsss", 
+                $generated_sid, $facility_id, $account, $measure_no, $tester_identifier, $tester_work_id, 
                 $tester_name, $tester_age, $tester_height, $editor, $asset_no, 
                 $device_type_zhtw, $machine_model, $measure_count, $online_type, $is_uploaded, 
                 $json_data, $raw_data, $file_name, $mime_type, $file_size,
@@ -202,8 +203,8 @@
             );
 
             if ($file_binary !== null) {
-                // 0-based index 20 對應第 21 個問號 (file_data)
-                mysqli_stmt_send_long_data($in_stmt, 20, $file_binary);
+                // 0-based index 21 對應第 22 個問號 (file_data)
+                mysqli_stmt_send_long_data($in_stmt, 21, $file_binary);
             }
 
             $exec_in = mysqli_stmt_execute($in_stmt);
@@ -217,7 +218,7 @@
                 $log_item = $item; unset($log_item['file_data']);
 
                 writeMeasureLog(
-                    $link, $tableLog, $facility_id, $new_id, $generated_sid, $measure_no, 
+                    $link, $tableLog, $facility_id, $account, $new_id, $generated_sid, $measure_no, 
                     $asset_no, $machine_model, 'INSERT', 
                     $log_item, 
                     $member_id, $remote_ip, $who_call . ' 呼叫 api ' . $API_name
@@ -235,6 +236,12 @@
             $method_str  = "新增";
             $msg_flag    = $has_error ? "$method_str 部分或全部 $caption 處理失敗" : "$method_str $caption 成功";
             $data        = result_message($status_flag, $code_flag, $msg_flag, $processed_results);
+            
+            if ($status_flag == "true") {
+                $item['barcode'] = $measure_no;
+                $item['gateway_token'] = $json_token;
+                // process_neoupload_data($generated_sid, $item);
+            }
 
         } else {
             $data = $conn_res;

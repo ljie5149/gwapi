@@ -1,8 +1,11 @@
 CREATE DATABASE gwapi    CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+    ALTER TABLE data_measure ADD COLUMN account VARCHAR(200)  NULL COMMENT '設備登入者' AFTER facility_id;
+    ALTER TABLE data_measure ADD COLUMN up_json_date DATETIME NULL COMMENT '上傳共通JSON時間' AFTER up_json_data;
 CREATE TABLE data_measure (
     id                  INT             UNSIGNED            NOT NULL    AUTO_INCREMENT  COMMENT '流水號',
     sid                 VARCHAR(50)                         NOT NULL                    COMMENT '資料唯一識別碼SID',
     facility_id         INT             UNSIGNED            NOT NULL                    COMMENT '所屬機構流水號，對應data_facility.id',
+    account             VARCHAR(200)                        NOT NULL                    COMMENT '設備登入者',
     measure_no          VARCHAR(100)                        NOT NULL                    COMMENT '健檢流水號',
     tester_identifier   VARCHAR(100)                            NULL                    COMMENT '身份證',
     tester_work_id      VARCHAR(100)                            NULL                    COMMENT '工號',
@@ -24,6 +27,7 @@ CREATE TABLE data_measure (
     file_data           LONGBLOB                                NULL                    COMMENT '上傳檔案Binary二進位內容',
     measure_date        DATETIME                            NOT NULL                    COMMENT '健檢檢測日期時間',
     up_json_data        LONGTEXT        DEFAULT                 NULL                    COMMENT '共通JSON資料',
+    up_json_date        DATETIME                                NULL                    COMMENT '上傳共通JSON時間',
     remark              TEXT            DEFAULT                 NULL                    COMMENT '備註',
     created_at          DATETIME                            NOT NULL                    COMMENT '資料建立日期時間',
     updated_at          DATETIME        DEFAULT                 NULL                    COMMENT '資料最後更新日期時間',
@@ -37,11 +41,13 @@ CREATE TABLE data_measure (
     KEY idx_is_uploaded (is_uploaded)
 ) COMMENT='設備健檢量測資料表';
 
+    ALTER TABLE log_measure ADD COLUMN account VARCHAR(200)  NULL COMMENT '設備登入者' AFTER sid;
 CREATE TABLE log_measure (
     id                  BIGINT          UNSIGNED            NOT NULL    AUTO_INCREMENT  COMMENT 'LOG流水號',
     facility_id         INT             UNSIGNED            NOT NULL                    COMMENT '所屬機構流水號，對應data_facility.id',
     measure_id          INT             UNSIGNED DEFAULT        NULL                    COMMENT '對應data_measure流水號',
     sid                 VARCHAR(50)                         NOT NULL                    COMMENT 'data_measure資料唯一識別碼SID',
+    account             VARCHAR(200)                        NOT NULL                    COMMENT '設備登入者',
     measure_no          VARCHAR(100)    DEFAULT                 NULL                    COMMENT '健檢流水號',
     tester_identifier   VARCHAR(100)                            NULL                    COMMENT '身份證',
     tester_work_id      VARCHAR(100)                            NULL                    COMMENT '工號',
@@ -57,7 +63,7 @@ CREATE TABLE log_measure (
     change_data         LONGTEXT        DEFAULT                 NULL                    COMMENT '異動欄位內容JSON，記錄異動前後資料',
     action_user         VARCHAR(100)    DEFAULT                 NULL                    COMMENT '異動操作者帳號或識別碼',
     action_ip           VARCHAR(50)     DEFAULT                 NULL                    COMMENT '異動來源IP位址',
-    action_note         VARCHAR(255)    DEFAULT                 NULL                    COMMENT '異動說明',
+    action_note         LONGTEXT        DEFAULT                 NULL                    COMMENT '異動說明',
     created_at          DATETIME                            NOT NULL                    COMMENT 'LOG建立日期時間',
     PRIMARY KEY (id),
     KEY idx_measure_id (measure_id),

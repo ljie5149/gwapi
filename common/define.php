@@ -34,6 +34,8 @@
 	$g_token_expire_sec = 3 * 24 * 60 * 60;
 	$g_k 	= 'PRJFy9bRrZZbO2CtpMJN6IcOffu5ODscEp8sknwEoRsIr2kPFOu5ru96ovaJFW2d';
 
+	$g_gateway_token = "8f3d9a1e2b4c7f0a5e8d9c2b1a3f4e5d";
+
 	// 系統參數
 	// -----------------------------------------------------------------------------------------------------------------
 	$g_exit_symbol						= "---------------------------  ";
