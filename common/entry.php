@@ -43,6 +43,254 @@
     include("author_define.php");
     include("mailCore.php");
 	
+	function parse_inbody_binary_to_payloads($file_binary, $param_data, &$errMsg) {
+		$payloads = array();
+
+		if (empty($file_binary)) {
+			$errMsg = "Empty data";
+			return $payloads;
+		}
+
+		try {
+			// 1. 將 binary 資料寫入 PHP 記憶體串流 (Memory Stream)
+			$tempStream = fopen('php://memory', 'r+');
+			fwrite($tempStream, $file_binary);
+			rewind($tempStream); // 指針移回開頭
+
+			// 2. 透過 PHPExcel 讀取記憶體串流中的 Excel 檔案
+			$inputFileType = PHPExcel_IOFactory::identify('php://memory');
+			$objReader     = PHPExcel_IOFactory::createReader($inputFileType);
+			$objPHPExcel   = $objReader->load('php://memory');
+
+			// 關閉記憶體串流資源
+			fclose($tempStream);
+
+			// 3. 取得指定工作表 "InBody"
+			$sheet = $objPHPExcel->getSheetByName('InBody');
+			if (!$sheet) {
+				$sheet = $objPHPExcel->getSheet(0); // 備用：讀取第一個 Sheet
+			}
+
+			$highestRow    = $sheet->getHighestRow();
+			$highestColumn = $sheet->getHighestColumn();
+
+			// 4. 建立 Header 欄位名稱映射表
+			$headerMap = array();
+			$firstRowData = $sheet->rangeToArray("A1:{$highestColumn}1", NULL, true, false)[0];
+			foreach ($firstRowData as $colIdx => $colName) {
+				if ($colName !== null) {
+					$headerMap[trim($colName)] = $colIdx;
+				}
+			}
+
+			// 5. 逐行讀取資料
+			for ($row = 2; $row <= $highestRow; $row++) {
+				$rowData = $sheet->rangeToArray("A{$row}:{$highestColumn}{$row}", NULL, true, false)[0];
+
+				$getValue = function($colName) use ($headerMap, $rowData) {
+					if (isset($headerMap[$colName])) {
+						$val = $rowData[$headerMap[$colName]];
+						return ($val === '-' || $val === null) ? '' : trim($val);
+					}
+					return '';
+				};
+
+				$patientId  = $getValue('2. ID');
+				$rawTime    = $getValue('14. Test Date / Time');
+				$bodyFat    = (float)$getValue('36. PBF (Percent Body Fat)');
+				$muscleMass = (float)$getValue('30. SMM (Skeletal Muscle Mass)');
+				$boneMass   = (float)$getValue('24. Minerals');
+				$bodyWater  = (float)$getValue('18. TBW (Total Body Water)');
+				$bmr        = (int)$getValue('64. BMR (Basal Metabolic Rate)');
+				$age        = (int)$getValue('6. Age');
+				
+				// 正則抓取內臟脂肪數值 (如: "Level 14" -> 14)
+				$vflRaw = $getValue('68. VFL (Visceral Fat Level)');
+				preg_match('/\d+/', $vflRaw, $matches);
+				$visceralFat = isset($matches[0]) ? (int)$matches[0] : 0;
+
+				// 忽略空白與無效列
+				if (empty($rawTime) && empty($patientId)) {
+					continue;
+				}
+
+				// 日期時間格式化
+				$formattedTime = date('Y-m-d H:i:s');
+				$cleanTimeStr  = str_replace('.', '-', rtrim(trim($rawTime), '.'));
+				$dt            = DateTime::createFromFormat('Y-m-d H:i:s', $cleanTimeStr);
+				if ($dt) {
+					$formattedTime = $dt->format('Y-m-d H:i:s');
+				}
+
+				// 組裝至 Payload 陣列
+				$payloads[] = array(
+					"gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
+					"barcode"         => $patientId,
+					"checkpoint_code" => "STATION_BODY_FAT",
+					"account"         => !empty($param_data['account']) ? $param_data['account'] : "",
+					"facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
+					"inspector_name"  => "Excel匯入",
+					"measured_at"     => $formattedTime,
+					"extra_data"      => array(
+						array("tag" => "body_fat",      "value" => $bodyFat),
+						array("tag" => "muscle_mass",   "value" => $muscleMass),
+						array("tag" => "bone_mass",     "value" => $boneMass),
+						array("tag" => "visceral_fat",  "value" => $visceralFat),
+						array("tag" => "body_water",    "value" => $bodyWater),
+						array("tag" => "bmr",           "value" => $bmr),
+						array("tag" => "metabolic_age", "value" => $age)
+					)
+				);
+			}
+
+		} catch (Exception $e) {
+			$errMsg = 'Parse Excel Binary Error: ' . $e->getMessage();
+			// 例外處理
+			error_log('Parse Excel Binary Error: ' . $e->getMessage());
+		}
+
+		return $payloads;
+	}
+	function parse_inbody_excel_to_payloads_fromFile($inputFileName, $param_data, &$errMsg) {
+		// 儲存所有解析出的 Payload 陣列
+		$payloads = array();
+
+		try {
+			// 1. 自動偵測檔案格式並載入 Excel 檔案
+			$inputFileType = PHPExcel_IOFactory::identify($inputFileName);
+			$objReader     = PHPExcel_IOFactory::createReader($inputFileType);
+			$objPHPExcel   = $objReader->load($inputFileName);
+
+			// 2. 切換至 "InBody" 工作表
+			$sheet = $objPHPExcel->getSheetByName('InBody');
+			if (!$sheet) {
+				// 若找不指定名稱的工作表，則預設讀取第一個 Sheet
+				$sheet = $objPHPExcel->getSheet(0);
+			}
+			
+			$highestRow    = $sheet->getHighestRow();
+			$highestColumn = $sheet->getHighestColumn();
+
+			// 3. 取得第一行表頭 (Header) 並做欄位名稱對照 (Column Index Map)
+			$headerMap = array();
+			$firstRowData = $sheet->rangeToArray("A1:{$highestColumn}1", NULL, true, false)[0];
+			foreach ($firstRowData as $colIdx => $colName) {
+				if ($colName !== null) {
+					$headerMap[trim($colName)] = $colIdx;
+				}
+			}
+
+			// 4. 從第 2 行開始讀取資料列
+			// echo "highestRow =$highestRow";
+			for ($row = 2; $row <= $highestRow; $row++) {
+				$rowData = $sheet->rangeToArray("A{$row}:{$highestColumn}{$row}", NULL, true, false)[0];
+
+				// var_dump($rowData);
+				// 輔助函式：依據欄位名稱取得儲存格值
+				$getValue = function($colName) use ($headerMap, $rowData) {
+					if (isset($headerMap[$colName])) {
+						$val = $rowData[$headerMap[$colName]];
+						return ($val === '-' || $val === null) ? '' : trim($val);
+					}
+					return '';
+				};
+
+				// 讀取特定欄位值 (根據 Excel 實際標題)
+				$patientId  = $getValue('2. ID');
+				$rawTime    = $getValue('14. Test Date / Time');
+				$bodyFat    = (float)$getValue('36. PBF (Percent Body Fat)');
+				$muscleMass = (float)$getValue('30. SMM (Skeletal Muscle Mass)');
+				$boneMass   = (float)$getValue('24. Minerals');
+				$bodyWater  = (float)$getValue('18. TBW (Total Body Water)');
+				$bmr        = (int)$getValue('64. BMR (Basal Metabolic Rate)');
+				$age        = (int)$getValue('6. Age');
+				
+				// 解析內臟脂肪 (例: "Level 14" -> 14)
+				$vflRaw = $getValue('68. VFL (Visceral Fat Level)');
+				preg_match('/\d+/', $vflRaw, $matches);
+				$visceralFat = isset($matches[0]) ? (int)$matches[0] : 0;
+
+				// 若測量時間或 ID 為空則跳過無效列
+				if (empty($rawTime) && empty($patientId)) {
+					continue;
+				}
+
+				// 5. 時間格式轉換 (YYYY.MM.DD. HH:MM:SS -> YYYY-MM-DD HH:MM:SS)
+				$formattedTime = date('Y-m-d H:i:s');
+				$cleanTimeStr  = str_replace('.', '-', rtrim(trim($rawTime), '.'));
+				// echo $cleanTimeStr."\n";
+				$dt            = DateTime::createFromFormat('Y-m-d H:i:s', $cleanTimeStr);
+				if ($dt) {
+					$formattedTime = $dt->format('Y-m-d H:i:s');
+				}
+
+				// 6. 組裝為 STATION_BODY_FAT 標準 Payload 格式
+				$payload = array(
+					"gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
+					"barcode"         => $patientId,
+					"checkpoint_code" => "STATION_BODY_FAT",
+					"account"         => !empty($param_data['account']) ? $param_data['account'] : "",
+					"facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
+					"inspector_name"  => "Excel匯入",
+					"measured_at"     => $formattedTime,
+					"extra_data"      => array(
+						array("tag" => "body_fat",      "value" => $bodyFat),
+						array("tag" => "muscle_mass",   "value" => $muscleMass),
+						array("tag" => "bone_mass",     "value" => $boneMass),
+						array("tag" => "visceral_fat",  "value" => $visceralFat),
+						array("tag" => "body_water",    "value" => $bodyWater),
+						array("tag" => "bmr",           "value" => $bmr),
+						array("tag" => "metabolic_age", "value" => $age)
+					)
+				);
+
+				$payloads[] = $payload;
+			}
+
+		} catch (Exception $e) {
+			$errMsg = "讀取 $inputFileName 檔案時發生錯誤: " . $e->getMessage();
+		}
+
+		return $payloads;
+	}
+
+	function SaveFile($param_data, &$errMsg) {
+		global $g_log_path;
+
+		// var_dump($param_data);
+		$tfile_name = isset($param_data['file_name']) ? $param_data['file_name'] : "";
+		$fileData 	= $param_data['file_binary'] ?? "";
+
+		$filePath = "";
+		try {
+			// 1. 取得副檔名（例如："xlsx"、"pdf" 等，自動轉小寫）
+			$ext = strtolower(pathinfo($tfile_name, PATHINFO_EXTENSION));
+
+			// 2. 如果沒有給副檔名，可給定預設值（例如 "xlsx"）
+			if (empty($ext)) {
+				$ext = 'csv';
+			}
+
+			if (!empty($fileData)) {
+				$filePath = $g_log_path.'tmp.'.$ext;
+
+				// 4. 將 BLOB 二進位資料寫入檔案
+				$bytesWritten = file_put_contents($filePath, $fileData);
+
+				if ($bytesWritten !== false) {
+					$errMsg = "成功寫入檔案：{$filePath}（大小：{$bytesWritten} 位元組）";
+				} else {
+					$errMsg = "寫入檔案失敗，請檢查資料夾權限。";
+				}
+			} else {
+				$errMsg = "file_data 欄位為空。";
+			}
+
+		} catch (Exception $e) {
+			$errMsg = "建立 $tfile_name 檔案時發生錯誤: " . $e->getMessage();
+		}
+		return $filePath;
+	}
 	/**
 	 * 處理 NeoUpload 資料轉換並呼叫第三方 API 上傳
 	 *
@@ -58,6 +306,9 @@
 		$caption    = "共通資料上傳";
 		$member_id  = "Neo_Upload back_end";
 		$log_table  = "log_message";
+		$errMsg 	= "";
+		$filePath 	= "";
+		$payloads = null;
 
 		$data = array();
 
@@ -71,10 +322,6 @@
 			$device_json_str = $param_data['json_data'] ?? "";
 			$device_data     = json_decode($device_json_str, true);
 
-			if (empty($device_data) || !is_array($device_data)) {
-				return result_message("false", "0x0202", "Invalid or Empty json_data content", $null_array);
-			}
-
 			// 若儀器標記為錯誤狀態則不進行上傳
 			if (!empty($device_data['IsErrorOccured']) && $device_data['IsErrorOccured'] === true) {
 				return result_message("false", "0x0203", "Device error flag is set to true", $null_array);
@@ -86,20 +333,27 @@
 			$formatted_time = $dt ? $dt->format('Y-m-d H:i:s') : date('Y-m-d H:i:s');
 
 			$payload = [];
-			$model_name = $device_data['ModelName'] ?? "";
+			$model_name = $param_data['machine_model'] ?? "";
 
+			if ($model_name != "Inbody_120") {
+				if (empty($device_data) || !is_array($device_data)) {
+					return result_message("false", "0x0202", "Invalid or Empty json_data content", $null_array);
+				}
+			} else {
+				$filePath = SaveFile($param_data, $errMsg);
+			}
+			// echo "model_name :$model_name\n";
 			// var_dump($param_data);
 			// 4. 依據設備型號轉繪成第三方 API 規格所要求的 Payload 結構
 			if ($model_name == "VTrust_701DH") { // 血壓計
 				$payload = array(
+					"gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
 					"barcode"         => ($param_data['barcode'] ?? $device_data['PatientID'] ?? ""),
 					"checkpoint_code" => "STATION_BLOOD_PRESSURE",
-					"gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
 					"account"         => !empty($param_data['account']) ? $param_data['account'] : "",
 					"facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
 					"inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
 					"measured_at"     => $formatted_time,
-					"instrument_name" => $model_name ?: ($param_data['machineModel'] ?? ""),
 					"extra_data"      => array(
 						array("tag" => "systolic",  "value" => (int)($device_data['SYS'] ?? 0)),
 						array("tag" => "diastolic", "value" => (int)($device_data['DIA'] ?? 0)),
@@ -111,14 +365,13 @@
 				$formatted_time = $iop_dt ? $iop_dt->format('Y-m-d H:i:s') : $formatted_time;
 
 				$payload = array(
-					"barcode"         => ($param_data['barcode'] ?? $device_data['PatientID'] ?? ""),
-					"checkpoint_code" => "STATION_INTRAOCULAR_PRESSURE",
 					"gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
+					"barcode"         => ($param_data['barcode'] ?? $device_data['PatientID'] ?? ""),
+					"checkpoint_code" => "STATION_IOP_TEST",
 					"account"         => !empty($param_data['account']) ? $param_data['account'] : "",
 					"facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
 					"inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
 					"measured_at"     => $formatted_time,
-					"instrument_name" => $model_name ?: ($param_data['machineModel'] ?? ""),
 					"extra_data"      => array(
 						array("tag" => "iop_r", "value" => (int)($device_data['RightEye_mmHg'] ?? 0)),
 						array("tag" => "iop_l", "value" => (int)($device_data['LeftEye_mmHg'] ?? 0))
@@ -129,87 +382,72 @@
 				$formatted_time = $optometry_dt ? $optometry_dt->format('Y-m-d H:i:s') : $formatted_time;
 
 				$payload = array(
+					"gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
 					"barcode"         => ($param_data['barcode'] ?? $device_data['PatientID'] ?? ""),
 					"checkpoint_code" => "STATION_OPTOMETRY_TEST",
-					"gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
 					"account"         => !empty($param_data['account']) ? $param_data['account'] : "",
 					"facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
 					"inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
 					"measured_at"     => $formatted_time,
-					"instrument_name" => $model_name ?: ($param_data['machineModel'] ?? ""),
 					"extra_data"      => array(
-						array("tag" => "sph_uncorrected_r", "value" => (string)($device_data['RightEyeTypical']['SPH'] ?? "")),
-						array("tag" => "sph_uncorrected_l", "value" => (string)($device_data['LeftEyeTypical']['SPH'] ?? "")),
-						array("tag" => "cyl_uncorrected_r", "value" => (string)($device_data['RightEyeTypical']['CYL'] ?? "")),
-						array("tag" => "cyl_uncorrected_l", "value" => (string)($device_data['LeftEyeTypical']['CYL'] ?? ""))
+						array("tag" => "sph_uncorrected_r", "value" => (string)($device_data['RightSph'] ?? "")),
+						array("tag" => "sph_uncorrected_l", "value" => (string)($device_data['LeftSph'] ?? "")),
+						array("tag" => "cyl_uncorrected_r", "value" => (string)($device_data['RightCyl'] ?? "")),
+						array("tag" => "cyl_uncorrected_l", "value" => (string)($device_data['LeftCyl'] ?? ""))
 					)
 				);
 			} elseif ($model_name == "BSM3X0(330/370)") { // 身高體重機
 				$payload = array(
+					"gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
 					"barcode"         => ($param_data['barcode'] ?? $device_data['PatientID'] ?? ""),
 					"checkpoint_code" => "STATION_HEIGHT_WEIGHT",
-					"gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
 					"account"         => !empty($param_data['account']) ? $param_data['account'] : "",
 					"facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
 					"inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
 					"measured_at"     => $formatted_time,
-					"instrument_name" => $model_name ?: ($param_data['machineModel'] ?? ""),
 					"extra_data"      => array(
 						array("tag" => "height", "value" => (float)($device_data['Height_cm'] ?? 0)),
 						array("tag" => "weight", "value" => (float)($device_data['Weight_kg'] ?? 0)),
 						array("tag" => "bmi",    "value" => (float)($device_data['BMI'] ?? 0))
 					)
 				);
-			} else if ($device_data['ModelName'] == "Inbody_120") { // 體脂計
-				// 4. 轉繪成第三方 API 規格所要求的 Payload 結構
+			} else if ($model_name == "Inbody_120") { // 體脂計
+				$errMsg = "";
+				$payloads = parse_inbody_excel_to_payloads_fromFile($filePath, $param_data, $errMsg);
+				if (!empty($errMsg)) {
+					return result_message("false", "0x0204", $errMsg, $null_array);
+				}
+			} else if ($model_name == "HI301") { // 肺功能儀
 				// $payload = array(
-				//     "barcode"         => ($param_data['barcode'] ?? $device_data['PatientID'] ?? ""),
-				//     "checkpoint_code" => "STATION_BLOOD_PRESSURE",
-				//	   "gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
-				//     "account"         => !empty($param_data['account']) ? $param_data['account'] : "",
-				//     "facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
-				//     "inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
-				//     "measured_at"     => $formatted_time,
-				//     "instrument_name" => $device_data['ModelName'] ?? ($param_data['machineModel'] ?? ""),
-				//     "extra_data"      => array(
-				//         array("tag" => "systolic",  "value" => (int)($device_data['SYS'] ?? 0)),
-				//         array("tag" => "diastolic", "value" => (int)($device_data['DIA'] ?? 0)),
-				//         array("tag" => "pulse",     "value" => (int)($device_data['Pulse'] ?? 0))
-				//     )
+				// 	"gatewayToken"    => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
+				// 	"barcode"         => ($param_data['barcode'] ?? $param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
+				// 	"checkpoint_code" => "STATION_PFT",
+				// 	"account"         => !empty($param_data['account']) ? $param_data['account'] : "",
+				// 	"facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
+				// 	"inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
+				// 	"measured_at"     => $formatted_time,
+				// 	"extra_data"      => array(
+				// 		array("tag" => "fvc",      "value" => (float)($device_data['FVC_Percent'] ?? 0)),
+				// 		array("tag" => "fvc_l",    "value" => (float)($device_data['FVC_L'] ?? 0)),
+				// 		array("tag" => "fev1",     "value" => (float)($device_data['FEV1_Percent'] ?? 0)),
+				// 		array("tag" => "fev1_l",   "value" => (float)($device_data['FEV1_L'] ?? 0)),
+				// 		array("tag" => "fev1_fvc", "value" => (float)($device_data['FEV1_FVC_Ratio'] ?? 0)),
+				// 		array("tag" => "pef",      "value" => (float)($device_data['PEF'] ?? 0)),
+				// 		array("tag" => "fef25_75", "value" => (float)($device_data['FEF25_75'] ?? 0))
+				// 	)
 				// );
-			} else if ($device_data['ModelName'] == "HI301") { // 肺功能儀
-				// 4. 轉繪成第三方 API 規格所要求的 Payload 結構
+			} else if ($model_name == "CM300") { // 骨密度儀
 				// $payload = array(
-				//     "barcode"         => ($param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
-				//     "checkpoint_code" => "STATION_BLOOD_PRESSURE",
-				//	   "gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
-				//     "account"         => !empty($param_data['account']) ? $param_data['account'] : "",
-				//     "facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
-				//     "inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
-				//     "measured_at"     => $formatted_time,
-				//     "instrument_name" => $device_data['ModelName'] ?? ($param_data['machineModel'] ?? ""),
-				//     "extra_data"      => array(
-				//         array("tag" => "systolic",  "value" => (int)($device_data['SYS'] ?? 0)),
-				//         array("tag" => "diastolic", "value" => (int)($device_data['DIA'] ?? 0)),
-				//         array("tag" => "pulse",     "value" => (int)($device_data['Pulse'] ?? 0))
-				//     )
-				// );
-			} else if ($device_data['ModelName'] == "CM300") { // 骨密度儀
-				// 4. 轉繪成第三方 API 規格所要求的 Payload 結構
-				// $payload = array(
-				//     "barcode"         => ($param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
-				//     "checkpoint_code" => "STATION_BLOOD_PRESSURE",
-				//	   "gatewayToken"	  => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
-				// 	   "account"         => !empty($param_data['account']) ? $param_data['account'] : "",
-				//     "facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
-				//     "inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
-				//     "measured_at"     => $formatted_time,
-				//     "instrument_name" => $device_data['ModelName'] ?? ($param_data['machineModel'] ?? ""),
-				//     "extra_data"      => array(
-				//         array("tag" => "systolic",  "value" => (int)($device_data['SYS'] ?? 0)),
-				//         array("tag" => "diastolic", "value" => (int)($device_data['DIA'] ?? 0)),
-				//         array("tag" => "pulse",     "value" => (int)($device_data['Pulse'] ?? 0))
-				//     )
+				// 	"gatewayToken"    => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
+				// 	"barcode"         => ($param_data['barcode'] ?? $param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
+				// 	"checkpoint_code" => "STATION_BONE_DENSITY",
+				// 	"account"         => !empty($param_data['account']) ? $param_data['account'] : "",
+				// 	"facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
+				// 	"inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
+				// 	"measured_at"     => $formatted_time,
+				// 	"extra_data"      => array(
+				// 		array("tag" => "t_score", "value" => (float)($device_data['TScore'] ?? 0))
+				// 	)
 				// );
 			} else {
 				// 未支援的設備型號時的回傳
@@ -217,33 +455,63 @@
 			}
 
 			// 5. 金鑰與公鑰檢查
-			$account       = $payload['account'];
-			$facility_id   = $payload['facilityId'];
-			$gateway_token = $payload['gatewayToken'];
-			$gateway_token = $g_gateway_token;
-			// echo "gateway_token :$gateway_token\n";
-			
-			$pub_key_path  = "/var/www/html/gwapi/key/rsa_public.pem";
+			if ($payloads == null || count($payloads) == 0) {
+				$account       = $payload['account'];
+				$facility_id   = $payload['facilityId'];
+				$gateway_token = $payload['gatewayToken'];
+				$gateway_token = $g_gateway_token;
+				// echo "gateway_token :$gateway_token\n";
+				$pub_key_path  = "/var/www/html/gwapi/key/rsa_public.pem";
 
-			if (!file_exists($pub_key_path)) {
-				return result_message("false", "0x0204", "RSA Public Key File Not Found", $null_array);
+				if (!file_exists($pub_key_path)) {
+					return result_message("false", "0x0204", "RSA Public Key File Not Found", $null_array);
+				}
+				$public_key = file_get_contents($pub_key_path);
+
+				// 6. 呼叫傳送函式
+				$data = upload_to_third_party_api(
+					$sid, 
+					$member_id, 
+					$payload, 
+					$account, 
+					$facility_id, 
+					$gateway_token, 
+					$public_key, 
+					null, 
+					$remote_ip, 
+					$caption, 
+					$log_table
+				);
+			} else {
+				foreach ($payloads as $cur_payload) {
+					$account       = $cur_payload['account'];
+					$facility_id   = $cur_payload['facilityId'];
+					$gateway_token = $cur_payload['gatewayToken'];
+					$gateway_token = $g_gateway_token;
+					// echo "gateway_token :$gateway_token\n";
+					$pub_key_path  = "/var/www/html/gwapi/key/rsa_public.pem";
+
+					if (!file_exists($pub_key_path)) {
+						return result_message("false", "0x0204", "RSA Public Key File Not Found", $null_array);
+					}
+					$public_key = file_get_contents($pub_key_path);
+
+					// 6. 呼叫傳送函式
+					$data = upload_to_third_party_api(
+						$sid, 
+						$member_id, 
+						$cur_payload, 
+						$account, 
+						$facility_id, 
+						$gateway_token, 
+						$public_key, 
+						null, 
+						$remote_ip, 
+						$caption, 
+						$log_table
+					);
+    			}
 			}
-			$public_key = file_get_contents($pub_key_path);
-
-			// 6. 呼叫傳送函式
-			$data = upload_to_third_party_api(
-				$sid, 
-				$member_id, 
-				$payload, 
-				$account, 
-				$facility_id, 
-				$gateway_token, 
-				$public_key, 
-				null, 
-				$remote_ip, 
-				$caption, 
-				$log_table
-			);
 
 		} catch (Throwable $t) {
 			$data = result_message("false", "0x0209", "System error: " . $t->getMessage(), $null_array);
@@ -365,18 +633,30 @@
                     $result_data  = result_message("false", $status_code, $summary_text, $null_array);
                 } else {
                     $decoded_res  = json_decode($api_response, true);
-					if ($decoded_res['status'] == 200 || $decoded_res['status'] == 201) {
-						$status_code  = "0x0200";
-						$message_kind = "SUCCESS";
-						$summary_text = "API Request Successful";
-						$result_data  = result_message("true", $status_code, $summary_text, $decoded_res !== null ? $decoded_res : $api_response);
-						updateCommonJsonDate($link, $sid, $member_id, $remote_ip, $payload, $result_data, true);
-					} else {
-						$status_code  = "0x0209";
-						$message_kind = "Failure";
-						$summary_text = "API Request Failure";
-						$result_data  = result_message("false", $status_code, $summary_text, $decoded_res !== null ? $decoded_res : $api_response);
-						updateCommonJsonDate($link, $sid, $member_id, $remote_ip, $payload, $result_data, false);
+					// echo "decoded_res resp :$decoded_res\n";
+					try {
+						$Hms_status = (isset($decoded_res['status'])) ? $decoded_res['status'] : -1;
+						if ($Hms_status == -1) {
+							$status_code  = "0x0203";
+							$message_kind = "Failure";
+							$summary_text = "API Request Failure - HMS please check account / barcode / measure_date";
+							$result_data  = result_message("false", $status_code, $summary_text, $decoded_res !== null ? $decoded_res : $api_response);
+							updateCommonJsonDate($link, $sid, $member_id, $remote_ip, $payload, $result_data, false);
+						} else if ($Hms_status == 200 || $Hms_status == 201) {
+							$status_code  = "0x0200";
+							$message_kind = "SUCCESS";
+							$summary_text = "API Request Successful";
+							$result_data  = result_message("true", $status_code, $summary_text, $decoded_res !== null ? $decoded_res : $api_response);
+							updateCommonJsonDate($link, $sid, $member_id, $remote_ip, $payload, $result_data, true);
+						} else {
+							$status_code  = "0x0209";
+							$message_kind = "Failure";
+							$summary_text = "API Request Failure";
+							$result_data  = result_message("false", $status_code, $summary_text, $decoded_res !== null ? $decoded_res : $api_response);
+							updateCommonJsonDate($link, $sid, $member_id, $remote_ip, $payload, $result_data, false);
+						}
+					} catch (Exception $e) {
+						$result_data = result_message("false", "0x0209", "Exception error: " . $e->getMessage(), $decoded_res);
 					}
                 }
 

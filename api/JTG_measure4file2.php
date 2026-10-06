@@ -213,7 +213,7 @@
                 $new_id = mysqli_insert_id($link);
                 mysqli_stmt_close($in_stmt);
 
-                $processed_results[] = ['id' => $new_id, 'sid' => $generated_sid, 'action' => 'INSERT', 'status' => 'true'];
+                $processed_results['gateway'] = ['id' => $new_id, 'sid' => $generated_sid, 'action' => 'INSERT', 'status' => 'true'];
 
                 $log_item = $item; unset($log_item['file_data']);
 
@@ -228,7 +228,7 @@
                 $db_err = $in_stmt ? mysqli_stmt_error($in_stmt) : mysqli_error($link);
                 if ($in_stmt) mysqli_stmt_close($in_stmt);
                 $has_error = true;
-                $processed_results[] = ['sid' => $generated_sid, 'status' => 'false', 'message' => '資料新增失敗: ' . $db_err];
+                $processed_results['gateway'] = ['sid' => $generated_sid, 'status' => 'false', 'message' => '資料新增失敗: ' . $db_err];
             }
 
             $status_flag = $has_error ? "false" : "true";
@@ -240,7 +240,11 @@
             if ($status_flag == "true") {
                 $item['barcode'] = $measure_no;
                 $item['gateway_token'] = $json_token;
-                // process_neoupload_data($generated_sid, $item);
+                $item['file_binary'] = $file_binary;
+                $resp = null;
+                $resp = process_neoupload_data($generated_sid, $item);
+                $processed_results['uploadHms'] = $resp;
+                $data = result_message($status_flag, $code_flag, $msg_flag, $processed_results);
             }
 
         } else {

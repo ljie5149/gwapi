@@ -298,7 +298,7 @@
                         mysqli_stmt_bind_param($chk_stmt, "s", $sid);
                         mysqli_stmt_execute($chk_stmt);
                         $chk_res = mysqli_stmt_get_result($chk_stmt);
-                        $always_insert = true;
+                        $always_insert = (empty($sid)) ? true : false;
                         if ($chk_res && mysqli_num_rows($chk_res) > 0 && $always_insert == false) {
                             // -----------------------------
                             // 資料已存在 -> 執行更新 (UPDATE / REUPLOAD)
@@ -310,7 +310,7 @@
                             // 若沒帶入新檔案則保留原本的檔案相關資訊，防止被覆蓋為 NULL
                             if ($file_binary === null) {
                                 $update_sql = "UPDATE `$tableMain` 
-                                               SET account = ?, sid = ?, facility_id = ?, device_type_zhtw = ?, measure_no = ?, asset_no = ?, machine_model = ?, 
+                                               SET account = ?, sid = ?, facility_id = ?, measure_no = ?, asset_no = ?, machine_model = ?, 
                                                     device_type_zhtw = ?, 
                                                    online_type = ?, is_uploaded = ?, json_data = ?, raw_data = ?, 
                                                    tester_identifier = ?, tester_work_id = ?, tester_name = ?, editor = ?,
@@ -318,7 +318,7 @@
                                                WHERE id = ?";
                                 
                                 $up_stmt = mysqli_prepare($link, $update_sql);
-                                mysqli_stmt_bind_param($up_stmt, "ssisssssissonsssssi", 
+                                mysqli_stmt_bind_param($up_stmt, "ssisssssisssssssssi", 
                                     $account,
                                     $sid, $facility_id, $measure_no, $asset_no, $machine_model, 
                                     $device_type_zhtw,
@@ -353,7 +353,7 @@
                             mysqli_stmt_close($up_stmt);
 
                             if ($exec_up && $affected_rows >= 0) {
-                                $processed_results[] = ['id' => $exist_id, 'sid' => $sid, 'action' => 'UPDATE', 'status' => 'true'];
+                                $processed_results['gateway'] = ['id' => $exist_id, 'sid' => $sid, 'action' => 'UPDATE', 'status' => 'true'];
 
                                 $log_before = $exist_data; unset($log_before['file_data']);
                                 $log_after = $item; unset($log_after['file_data']);
@@ -366,7 +366,7 @@
                                 );
                             } else {
                                 $has_error = true;
-                                $processed_results[] = ['sid' => $sid, 'status' => 'false', 'message' => '更新失敗'];
+                                $processed_results['gateway'] = ['sid' => $sid, 'status' => 'false', 'message' => '更新失敗'];
                             }
                         } else {
                             // -----------------------------
@@ -400,7 +400,7 @@
                                 $new_id = mysqli_insert_id($link);
                                 mysqli_stmt_close($in_stmt);
 
-                                $processed_results[] = ['id' => $new_id, 'sid' => $sid, 'action' => 'INSERT', 'status' => 'true'];
+                                $processed_results['gateway'] = ['id' => $new_id, 'sid' => $generated_sid, 'action' => 'INSERT', 'status' => 'true'];
 
                                 $log_item = $item; unset($log_item['file_data']);
 
@@ -413,7 +413,7 @@
                             } else {
                                 if ($in_stmt) mysqli_stmt_close($in_stmt);
                                 $has_error = true;
-                                $processed_results[] = ['sid' => $sid, 'status' => 'false', 'message' => '新增失敗'];
+                                $processed_results['gateway'] = ['sid' => $generated_sid, 'status' => 'false', 'message' => '新增失敗'];
                             }
                         }
                     }
@@ -428,7 +428,8 @@
                         $item['gateway_token'] = $json_token;
                         if (empty($sid) || strlen($sid) == 0) $sid = $generated_sid;
                         $resp = process_neoupload_data($sid, $item);
-                        $data['uploadHms'] = $resp;
+                        $processed_results['uploadHms'] = $resp;
+                        $data = result_message($status_flag, $code_flag, $msg_flag, $processed_results);
                     }
                     break;
 
