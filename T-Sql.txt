@@ -428,9 +428,13 @@ CREATE TABLE log_device (
 
 ) COMMENT='健檢設備資料異動LOG表';
 
+    ALTER TABLE log_message ADD COLUMN measure_sid VARCHAR(20)  NULL COMMENT '量測sid' AFTER create_date;
+    ALTER TABLE log_message ADD COLUMN hms_response TEXT  NULL COMMENT 'HmsApi結果' AFTER measure_sid;
 CREATE TABLE log_message (
     nid					INT(20) 		UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '流水號',
     create_date 		DATETIME		NOT NULL COMMENT '建立日期'		,
+    measure_sid         VARCHAR(20) 	    NULL COMMENT '量測sid'		,
+    hms_response        TEXT 	            NULL COMMENT 'HmsApi結果'   ,
     member_sid 			VARCHAR(20) 	NOT NULL COMMENT '編輯人員'		,
     message_kind 		VARCHAR(20)  	NOT NULL COMMENT '訊息種類'		,
     title	 			VARCHAR(100) 	NOT NULL COMMENT '標題;;;;100'	,

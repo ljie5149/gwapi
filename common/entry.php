@@ -253,8 +253,228 @@
 
 		return $payloads;
 	}
+	function parse_HI301_csv_to_payloads_fromFile($inputFileName, $param_data, &$errMsg) {
+		// 儲存所有解析出的 Payload 陣列
+		$payloads = array();
 
-	function SaveFile($param_data, &$errMsg) {
+		if (!file_exists($inputFileName) || !is_readable($inputFileName)) {
+			$errMsg = "檔案不存在或無法讀取: $inputFileName";
+			return $payloads;
+		}
+
+		try {
+			// 1. 打開 CSV 檔案
+			$handle = fopen($inputFileName, 'r');
+			if ($handle === false) {
+				$errMsg = "無法開啟 CSV 檔案: $inputFileName";
+				return $payloads;
+			}
+
+			// 讀取第一行表頭 (Header)
+			$firstRowData = fgetcsv($handle);
+			if (!$firstRowData) {
+				fclose($handle);
+				$errMsg = "CSV 檔案內容為空: $inputFileName";
+				return $payloads;
+			}
+
+			// 移除 UTF-8 BOM 頭部（若存在）
+			if (isset($firstRowData[0])) {
+				$firstRowData[0] = preg_replace('/\x{EF}\x{BB}\x{BF}/', '', $firstRowData[0]);
+			}
+
+			// 2. 建立欄位名稱對照 (Column Index Map)
+			$headerMap = array();
+			foreach ($firstRowData as $colIdx => $colName) {
+				if ($colName !== null) {
+					$headerMap[trim($colName)] = $colIdx;
+				}
+			}
+
+			// 3. 逐行讀取 CSV 資料列
+			while (($rowData = fgetcsv($handle)) !== false) {
+
+				// 輔助函式：依據欄位名稱取得儲存格值
+				$getValue = function($colName) use ($headerMap, $rowData) {
+					if (isset($headerMap[$colName]) && isset($rowData[$headerMap[$colName]])) {
+						$val = trim($rowData[$headerMap[$colName]]);
+						return ($val === '-' || $val === '' || $val === 'NaN') ? '' : $val;
+					}
+					return '';
+				};
+
+				// 讀取標籤欄位
+				$patientId = $getValue('ID編號');
+				$rawTime   = $getValue('測試日期');
+
+				// 若測量時間或 ID 為空則跳過無效列
+				if (empty($rawTime) && empty($patientId)) {
+					continue;
+				}
+
+				// 讀取肺功能相關指標數據
+				$fvc          = (float)$getValue('%預測值.3');        // FVC 預測百分比 (%)
+				$fvc_l        = (float)$getValue('FVC');             // FVC 實際公升數 (L)
+				$fev1         = (float)$getValue('%預測值.5');        // FEV1.0 預測百分比 (%)
+				$fev1_l       = (float)$getValue('FEV1.0');          // FEV1.0 實際公升數 (L)
+				$fev1FvcRatio = (float)$getValue('FEV1.0/FVC');      // 一秒率 (%)
+				$pef          = (float)$getValue('PEF');             // 峰值呼氣流速 (L/s)
+				$fef2575      = (float)$getValue('FEF25-75%');       // 強制呼氣中段流速 (L/s)
+
+				// 4. 時間格式轉換 (YYYY/MM/DD HH:MM:SS -> YYYY-MM-DD HH:MM:SS)
+				$formattedTime = date('Y-m-d H:i:s');
+				$cleanTimeStr  = str_replace('.', '-', trim($rawTime));
+				$dt            = DateTime::createFromFormat('Y/m/d H:i:s', $cleanTimeStr);
+				if (!$dt) {
+					$dt = DateTime::createFromFormat('Y-m-d H:i:s', $cleanTimeStr);
+				}
+				if ($dt) {
+					$formattedTime = $dt->format('Y-m-d H:i:s');
+				}
+
+				// 5. 組裝為 STATION_PFT 標準 Payload 格式
+				$payload = array(
+					"gatewayToken"    => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
+					"barcode"         => $patientId,
+					"checkpoint_code" => "STATION_PFT",
+					"account"         => !empty($param_data['account']) ? $param_data['account'] : "",
+					"facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
+					"inspector_name"  => "CSV匯入",
+					"measured_at"     => $formattedTime,
+					"extra_data"      => array(
+						array("tag" => "fvc",      "value" => $fvc),
+						array("tag" => "fvc_l",    "value" => $fvc_l),
+						array("tag" => "fev1",     "value" => $fev1),
+						array("tag" => "fev1_l",   "value" => $fev1_l),
+						array("tag" => "fev1_fvc", "value" => $fev1FvcRatio),
+						array("tag" => "pef",      "value" => $pef),
+						array("tag" => "fef25_75", "value" => $fef2575)
+					)
+				);
+
+				$payloads[] = $payload;
+			}
+
+			fclose($handle);
+
+		} catch (Exception $e) {
+			$errMsg = "讀取 $inputFileName 檔案時發生錯誤: " . $e->getMessage();
+		}
+
+		return $payloads;
+	}
+	function parse_CM300_csv_to_payloads_fromFile($inputFileName, $param_data, &$errMsg) {
+		// 儲存所有解析出的 Payload 陣列
+		$payloads = array();
+
+		if (!file_exists($inputFileName) || !is_readable($inputFileName)) {
+			$errMsg = "檔案不存在或無法讀取: $inputFileName";
+			return $payloads;
+		}
+
+		try {
+			// 1. 打開 CSV 檔案 (CM-300 匯出檔案常為 CP950/BIG5 編碼)
+			$handle = fopen($inputFileName, 'r');
+			if ($handle === false) {
+				$errMsg = "無法開啟 CSV 檔案: $inputFileName";
+				return $payloads;
+			}
+
+			// 讀取第一行表頭 (Header)
+			$firstRowData = fgetcsv($handle);
+			if (!$firstRowData) {
+				fclose($handle);
+				$errMsg = "CSV 檔案內容為空: $inputFileName";
+				return $payloads;
+			}
+
+			// 移除 UTF-8 BOM 頭部（若存在）
+			if (isset($firstRowData[0])) {
+				$firstRowData[0] = preg_replace('/\x{EF}\x{BB}\x{BF}/', '', $firstRowData[0]);
+			}
+
+			// 2. 建立欄位名稱對照 (Column Index Map)
+			$headerMap = array();
+			foreach ($firstRowData as $colIdx => $colName) {
+				if ($colName !== null) {
+					$headerMap[trim(strtoupper($colName))] = $colIdx;
+				}
+			}
+
+			// 3. 逐行讀取 CSV 資料列
+			while (($rowData = fgetcsv($handle)) !== false) {
+
+				// 輔助函式：依據欄位名稱取得儲存格值
+				$getValue = function($colName) use ($headerMap, $rowData) {
+					$key = strtoupper($colName);
+					if (isset($headerMap[$key]) && isset($rowData[$headerMap[$key]])) {
+						$val = trim($rowData[$headerMap[$key]]);
+						return ($val === '-' || $val === '' || $val === 'NaN') ? '' : $val;
+					}
+					return '';
+				};
+
+				// 讀取標籤欄位
+				$patientId = $getValue('ID');
+				if (empty($patientId)) {
+					$patientId = $getValue('NAME'); // 若 ID 為空，回退使用 NAME
+				}
+
+				$rawTime = $getValue('MESDATE'); // 格式例: 230629152612 (YYMMDDHHMMSS)
+
+				// 若測量時間或 ID 為空則跳過無效列
+				if (empty($rawTime) && empty($patientId)) {
+					continue;
+				}
+
+				// 讀取骨密度相關指標數據
+				$tScore = (float)$getValue('TSC');  // T-Score
+				$zScore = (float)$getValue('ZSC');  // Z-Score
+				$sos    = (float)$getValue('SOS');  // Speed of Sound (m/s)
+
+				// 4. 時間格式轉換 (YYMMDDHHMMSS -> YYYY-MM-DD HH:MM:SS)
+				$formattedTime = date('Y-m-d H:i:s');
+				if (strlen($rawTime) === 12) {
+					// YYMMDDHHMMSS -> 20YY-MM-DD HH:MM:SS
+					$dt = DateTime::createFromFormat('ymdHis', $rawTime);
+					if ($dt) {
+						$formattedTime = $dt->format('Y-m-d H:i:s');
+					}
+				} else {
+					$dt = DateTime::createFromFormat('Y-m-d H:i:s', $rawTime);
+					if ($dt) {
+						$formattedTime = $dt->format('Y-m-d H:i:s');
+					}
+				}
+
+				// 5. 組裝為 STATION_BONE_DENSITY 標準 Payload 格式
+				$payload = array(
+					"gatewayToken"    => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
+					"barcode"         => !empty($patientId) ? $patientId : $param_data['barcode'],
+					"checkpoint_code" => "STATION_BONE_DENSITY",
+					"account"         => !empty($param_data['account']) ? $param_data['account'] : "",
+					"facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
+					"inspector_name"  => !empty($param_data['testerName']) ? $param_data['testerName'] : "系統自動介接",
+					"measured_at"     => $formattedTime,
+					"extra_data"      => array(
+						array("tag" => "t_score", "value" => $tScore),
+						// array("tag" => "z_score", "value" => $zScore),
+						// array("tag" => "sos",     "value" => $sos)
+					)
+				);
+
+				$payloads[] = $payload;
+			}
+
+			fclose($handle);
+
+		} catch (Exception $e) {
+			$errMsg = "讀取 $inputFileName 檔案時發生錯誤: " . $e->getMessage();
+		}
+
+		return $payloads;
+	}
+	function SaveFile($sid, $param_data, &$errMsg) {
 		global $g_log_path;
 
 		// var_dump($param_data);
@@ -272,7 +492,12 @@
 			}
 
 			if (!empty($fileData)) {
-				$filePath = $g_log_path.'tmp.'.$ext;
+				// 取得帶有微秒的 DateTime 物件
+				$now = DateTime::createFromFormat('U.u', sprintf('%.6f', microtime(true)));
+
+				// 格式化為：時:分:秒.毫秒 (例如: 14:30:15.123)
+				$timeWithMilliseconds = $now->format("H:i:s.") . substr($now->format("u"), 0, 3);
+				$filePath = $g_log_path."tmp_$sid"."_$timeWithMilliseconds.".$ext;
 
 				// 4. 將 BLOB 二進位資料寫入檔案
 				$bytesWritten = file_put_contents($filePath, $fileData);
@@ -291,6 +516,18 @@
 		}
 		return $filePath;
 	}
+	function DeleteFile($filePath, &$errMsg) {
+		// 檢查檔案是否存在且為一般檔案
+		if (file_exists($filePath) && is_file($filePath)) {
+			if (unlink($filePath)) {
+				// echo "檔案刪除成功：{$filePath}";
+			} else {
+				$errMsg = "檔案刪除失敗，請檢查權限。";
+			}
+		} else {
+			$errMsg = "檔案不存在：{$filePath}";
+		}
+	}
 	/**
 	 * 處理 NeoUpload 資料轉換並呼叫第三方 API 上傳
 	 *
@@ -306,9 +543,9 @@
 		$caption    = "共通資料上傳";
 		$member_id  = "Neo_Upload back_end";
 		$log_table  = "log_message";
-		$errMsg 	= "";
 		$filePath 	= "";
 		$payloads = null;
+		$errMsg = "";
 
 		$data = array();
 
@@ -335,12 +572,12 @@
 			$payload = [];
 			$model_name = $param_data['machine_model'] ?? "";
 
-			if ($model_name != "Inbody_120") {
+			if ($model_name != "Inbody_120" && $model_name != "HI301" && $model_name != "CM300") {
 				if (empty($device_data) || !is_array($device_data)) {
 					return result_message("false", "0x0202", "Invalid or Empty json_data content", $null_array);
 				}
 			} else {
-				$filePath = SaveFile($param_data, $errMsg);
+				$filePath = SaveFile($sid, $param_data, $errMsg);
 			}
 			// echo "model_name :$model_name\n";
 			// var_dump($param_data);
@@ -412,12 +649,19 @@
 					)
 				);
 			} else if ($model_name == "Inbody_120") { // 體脂計
-				$errMsg = "";
+				$errMsg = ""; $err = "";
 				$payloads = parse_inbody_excel_to_payloads_fromFile($filePath, $param_data, $errMsg);
+				DeleteFile($filePath, $err);
 				if (!empty($errMsg)) {
 					return result_message("false", "0x0204", $errMsg, $null_array);
 				}
 			} else if ($model_name == "HI301") { // 肺功能儀
+				$errMsg = ""; $err = "";
+				$payloads = parse_HI301_csv_to_payloads_fromFile($filePath, $param_data, $errMsg);
+				DeleteFile($filePath, $err);
+				if (!empty($errMsg)) {
+					return result_message("false", "0x0204", $errMsg, $null_array);
+				}
 				// $payload = array(
 				// 	"gatewayToken"    => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
 				// 	"barcode"         => ($param_data['barcode'] ?? $param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
@@ -437,6 +681,12 @@
 				// 	)
 				// );
 			} else if ($model_name == "CM300") { // 骨密度儀
+				$errMsg = ""; $err = "";
+				$payloads = parse_CM300_csv_to_payloads_fromFile($filePath, $param_data, $errMsg);
+				DeleteFile($filePath, $err);
+				if (!empty($errMsg)) {
+					return result_message("false", "0x0204", $errMsg, $null_array);
+				}
 				// $payload = array(
 				// 	"gatewayToken"    => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
 				// 	"barcode"         => ($param_data['barcode'] ?? $param_data['measureNo'] ?? $device_data['PatientID'] ?? ""),
@@ -483,6 +733,7 @@
 					$log_table
 				);
 			} else {
+				$errorList = null;
 				foreach ($payloads as $cur_payload) {
 					$account       = $cur_payload['account'];
 					$facility_id   = $cur_payload['facilityId'];
@@ -497,7 +748,7 @@
 					$public_key = file_get_contents($pub_key_path);
 
 					// 6. 呼叫傳送函式
-					$data = upload_to_third_party_api(
+					$res_data = upload_to_third_party_api(
 						$sid, 
 						$member_id, 
 						$cur_payload, 
@@ -510,9 +761,17 @@
 						$caption, 
 						$log_table
 					);
-    			}
-			}
+					// 收集錯誤/響應訊息與結果
+					$barcode   	 = $cur_payload['barcode'] ?? '';
+					$respMsg   	 = $res_data['responseMessage'] ?? '';
+					$errorList[] = "{$barcode},{$respMsg}";
+					// $res_data['responseMessage'] .= "(體檢條碼 :$barcode)";
 
+					$data[] = $res_data;
+    			}
+				// 組合最終的 errorMsg 字串 (以分號隔開)
+				$errMsg = implode(';', $errorList);
+			}
 		} catch (Throwable $t) {
 			$data = result_message("false", "0x0209", "System error: " . $t->getMessage(), $null_array);
 		} finally {
@@ -598,6 +857,7 @@
 
         $db = new CXDB($remote_ip);
         $link = null;
+		$barcode = $payload['barcode'] ?? "";
 
         try {
             $conn_res = $db->connect($link, $member_id, "");
@@ -645,13 +905,13 @@
 						} else if ($Hms_status == 200 || $Hms_status == 201) {
 							$status_code  = "0x0200";
 							$message_kind = "SUCCESS";
-							$summary_text = "API Request Successful";
+							$summary_text = "API Request Successful (體檢條碼 :$barcode)";
 							$result_data  = result_message("true", $status_code, $summary_text, $decoded_res !== null ? $decoded_res : $api_response);
 							updateCommonJsonDate($link, $sid, $member_id, $remote_ip, $payload, $result_data, true);
 						} else {
 							$status_code  = "0x0209";
 							$message_kind = "Failure";
-							$summary_text = "API Request Failure";
+							$summary_text = "API Request Failure (體檢條碼 :$barcode)";
 							$result_data  = result_message("false", $status_code, $summary_text, $decoded_res !== null ? $decoded_res : $api_response);
 							updateCommonJsonDate($link, $sid, $member_id, $remote_ip, $payload, $result_data, false);
 						}
@@ -662,9 +922,9 @@
 
                 // 3. 寫入 Log 至 log_message 資料表
                 $insert_sql = "INSERT INTO {$log_table} 
-                    (create_date, member_sid, message_kind, title, summary, content, script, remark) 
+                    (create_date, measure_sid, hms_response, member_sid, message_kind, title, summary, content, script, remark) 
                     VALUES 
-                    (NOW(), ?, ?, ?, ?, ?, ?, ?)";
+                    (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
                 $stmt = mysqli_prepare($link, $insert_sql);
                 if ($stmt) {
@@ -674,8 +934,11 @@
                     $script_info  = "Target URL: " . $api_url . " | Token: " . $gateway_token;
                     $remark_text  = (!empty($curl_error)) ? "cURL Error: " . $curl_error : "Raw Response: " . $api_response;
 
-                    $types  = "sssssss";
+                    $response_json = json_encode($result_data, JSON_UNESCAPED_UNICODE);
+                    $types  = "sssssssss";
                     $params = array(
+						$sid, 
+						$response_json, 
                         $member_id, 
                         $message_kind, 
                         $title_text, 
