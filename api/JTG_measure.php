@@ -143,6 +143,10 @@
                     $is_uploaded   = isset($src_data['is_uploaded']  ) && is_numeric($src_data['is_uploaded']) ? intval($src_data['is_uploaded']) : null;
                     $start_date    = isset($src_data['start_date']   ) ? trim($src_data['start_date']) : '';
                     $end_date      = isset($src_data['end_date']     ) ? trim($src_data['end_date'])   : '';
+                    
+                    $tester_identifier  = isset($src_data['tester_identifier']  ) ? trim($src_data['tester_identifier'] )   : '';
+                    $tester_work_id     = isset($src_data['tester_work_id']     ) ? trim($src_data['tester_work_id']    )   : '';
+                    $tester_name        = isset($src_data['tester_name']        ) ? trim($src_data['tester_name'])   : '';
 
                     $where_clauses = ["1=1"];
                     $params = [];
@@ -164,13 +168,28 @@
                         $types .= "i";
                     }
                     if (!empty($measure_no)) {
-                        $where_clauses[] = "measure_no = ?";
-                        $params[] = $measure_no;
+                        $where_clauses[] = "measure_no LIKE ?";
+                        $params[] = "%" . $measure_no . "%";
+                        $types .= "s";
+                    }
+                    if (!empty($tester_identifier)) {
+                        $where_clauses[] = "tester_identifier LIKE ?";
+                        $params[] = "%" . $tester_identifier . "%";
+                        $types .= "s";
+                    }
+                    if (!empty($tester_work_id)) {
+                        $where_clauses[] = "tester_work_id LIKE ?";
+                        $params[] = "%" . $tester_work_id . "%";
+                        $types .= "s";
+                    }
+                    if (!empty($tester_name)) {
+                        $where_clauses[] = "tester_name LIKE ?";
+                        $params[] = "%" . $tester_name . "%";
                         $types .= "s";
                     }
                     if (!empty($asset_no)) {
-                        $where_clauses[] = "asset_no = ?";
-                        $params[] = $asset_no;
+                        $where_clauses[] = "asset_no LIKE ?";
+                        $params[] = "%" . $asset_no . "%";
                         $types .= "s";
                     }
                     if (!empty($machine_model)) {
@@ -189,12 +208,12 @@
                         $types .= "i";
                     }
                     if (!empty($start_date)) {
-                        $where_clauses[] = "measure_date >= ?";
+                        $where_clauses[] = "created_at >= ?";
                         $params[] = $start_date;
                         $types .= "s";
                     }
                     if (!empty($end_date)) {
-                        $where_clauses[] = "measure_date <= ?";
+                        $where_clauses[] = "created_at <= ?";
                         $params[] = $end_date;
                         $types .= "s";
                     }
