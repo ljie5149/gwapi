@@ -373,7 +373,7 @@
 		}
 
 		try {
-			// 1. 打開 CSV 檔案 (CM-300 匯出檔案常為 CP950/BIG5 編碼)
+			// 1. 打開 CSV 檔案
 			$handle = fopen($inputFileName, 'r');
 			if ($handle === false) {
 				$errMsg = "無法開啟 CSV 檔案: $inputFileName";
@@ -409,7 +409,7 @@
 					$key = strtoupper($colName);
 					if (isset($headerMap[$key]) && isset($rowData[$headerMap[$key]])) {
 						$val = trim($rowData[$headerMap[$key]]);
-						return ($val === '-' || $val === '' || $val === 'NaN') ? '' : $val;
+						return ($val === '-' || $val === '--' || $val === '' || $val === 'NaN') ? '' : $val;
 					}
 					return '';
 				};
@@ -420,37 +420,54 @@
 					$patientId = $getValue('NAME'); // 若 ID 為空，回退使用 NAME
 				}
 
-				$rawTime = $getValue('MESDATE'); // 格式例: 230629152612 (YYMMDDHHMMSS)
+				// 支援 MESDATE 或 DATE 欄位
+				$rawTime = $getValue('MESDATE');
+				if (empty($rawTime)) {
+					$rawTime = $getValue('DATE');
+				}
 
-				// 若測量時間或 ID 為空則跳過無效列
+				// 若測量時間與 ID 皆為空則跳過無效列
 				if (empty($rawTime) && empty($patientId)) {
 					continue;
 				}
 
 				// 讀取骨密度相關指標數據
-				$tScore = (float)$getValue('TSC');  // T-Score
-				$zScore = (float)$getValue('ZSC');  // Z-Score
-				$sos    = (float)$getValue('SOS');  // Speed of Sound (m/s)
+				$tScore = (float)$getValue('T-SCORE');  // 支援帶連字號欄位 T-SCORE
+				if ($tScore === 0.0 && $getValue('T-SCORE') === '') {
+					$tScore = (float)$getValue('TSC');  // 相容舊版 TSC 欄位
+				}
 
-				// 4. 時間格式轉換 (YYMMDDHHMMSS -> YYYY-MM-DD HH:MM:SS)
+				$zScore = (float)$getValue('Z-SCORE');
+				if ($zScore === 0.0 && $getValue('Z-SCORE') === '') {
+					$zScore = (float)$getValue('ZSC');
+				}
+
+				$sos = (float)$getValue('SOS');
+
+				// 4. 時間格式轉換
 				$formattedTime = date('Y-m-d H:i:s');
-				if (strlen($rawTime) === 12) {
-					// YYMMDDHHMMSS -> 20YY-MM-DD HH:MM:SS
-					$dt = DateTime::createFromFormat('ymdHis', $rawTime);
-					if ($dt) {
-						$formattedTime = $dt->format('Y-m-d H:i:s');
-					}
-				} else {
-					$dt = DateTime::createFromFormat('Y-m-d H:i:s', $rawTime);
-					if ($dt) {
-						$formattedTime = $dt->format('Y-m-d H:i:s');
+				if (!empty($rawTime)) {
+					if (strlen($rawTime) === 12) {
+						// YYMMDDHHMMSS -> YYYY-MM-DD HH:MM:SS
+						$dt = DateTime::createFromFormat('ymdHis', $rawTime);
+						if ($dt) {
+							$formattedTime = $dt->format('Y-m-d H:i:s');
+						}
+					} else {
+						// 支援 YYYY/m/d, YYYY-m-d 等格式
+						try {
+							$dt = new DateTime($rawTime);
+							$formattedTime = $dt->format('Y-m-d H:i:s');
+						} catch (Exception $e) {
+							$formattedTime = date('Y-m-d H:i:s');
+						}
 					}
 				}
 
-				// 5. 組裝為 STATION_BONE_DENSITY 標準 Payload 格式
+				// 5. 組裝 Payload
 				$payload = array(
-					"gatewayToken"    => ($param_data['gateway_token'] ?? $device_data['gateway_token'] ?? ""),
-					"barcode"         => !empty($patientId) ? $patientId : $param_data['barcode'],
+					"gatewayToken"    => $param_data['gateway_token'] ?? "",
+					"barcode"         => !empty($patientId) ? $patientId : ($param_data['barcode'] ?? ""),
 					"checkpoint_code" => "STATION_BONE_DENSITY",
 					"account"         => !empty($param_data['account']) ? $param_data['account'] : "",
 					"facilityId"      => isset($param_data['facility_Id']) ? (int)$param_data['facility_Id'] : 1,
