@@ -706,9 +706,9 @@
 
 			// 5. 金鑰與公鑰檢查
 			if ($payloads == null || count($payloads) == 0) {
-				$account       = $payload['account'];
-				$facility_id   = $payload['facilityId'];
-				$gateway_token = $payload['gatewayToken'];
+				$account       = $payloads['account'];
+				$facility_id   = $payloads['facilityId'];
+				$gateway_token = $payloads['gatewayToken'];
 				$gateway_token = $g_gateway_token;
 				// echo "gateway_token :$gateway_token\n";
 				$pub_key_path  = "/var/www/html/gwapi/key/rsa_public.pem";

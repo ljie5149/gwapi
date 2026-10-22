@@ -130,7 +130,7 @@
             $who_call          = get_str_val($item, 'who_call', 'app');
             $sid               = get_str_val($item, 'sid', '');
             $facility_id       = get_int_val($item, 'facility_id', 0);
-            $account           = get_int_val($item, 'account', '');
+            $account           = get_str_val($item, 'account', '');
             $measure_no        = get_str_val($item, 'measure_no', '');
             $asset_no          = get_str_val($item, 'asset_no', '');
             $machine_model     = get_str_val($item, 'machine_model', '');
