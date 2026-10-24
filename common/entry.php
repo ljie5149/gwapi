@@ -363,7 +363,7 @@
 
 		return $payloads;
 	}
-	function parse_CM300_csv_to_payloads_fromFile($inputFileName, $param_data, &$errMsg) {
+	function parse_CM300_csv_to_payloads_fromFile($inputFileName, $param_data, &$errMsg, bool $DateNow = true) {
 		// 儲存所有解析出的 Payload 陣列
 		$payloads = array();
 
@@ -446,7 +446,7 @@
 
 				// 4. 時間格式轉換
 				$formattedTime = date('Y-m-d H:i:s');
-				if (!empty($rawTime)) {
+				if (!$DateNow && !empty($rawTime)) {
 					if (strlen($rawTime) === 12) {
 						// YYMMDDHHMMSS -> YYYY-MM-DD HH:MM:SS
 						$dt = DateTime::createFromFormat('ymdHis', $rawTime);
